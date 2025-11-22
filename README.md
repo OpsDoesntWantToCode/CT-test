@@ -167,12 +167,12 @@ python main.py
 
 ## 🧭 Thang Đánh Giá Rủi Ro
 
-  Điểm        Mức độ             Ý nghĩa
-  ----------- ------------------ ------------------------------
-  80 -- 100   **Info / Low**     An toàn
-  50 -- 79    **Low / Medium**   Có rủi ro nhẹ
-  25 -- 49    **Medium**         Nguy hiểm, hạn chế di chuyển
-  0 -- 24     **High**           Rất nguy hiểm, nên sơ tán
+| **Safety Score** | **Risk Level**      | **Mô tả**                           |
+|------------------|----------------------|--------------------------------------|
+| 80 — 100         | Info / Low          | An toàn                              |
+| 50 — 79          | Low / Medium        | Có rủi ro nhẹ                        |
+| 25 — 49          | Medium              | Nguy hiểm, hạn chế di chuyển         |
+| 0 — 24           | High                | Rất nguy hiểm, nên sơ tán            |
 
 ## ⚙️ Logic Tính Toán
 

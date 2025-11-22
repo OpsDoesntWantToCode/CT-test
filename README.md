@@ -121,19 +121,37 @@ python main.py
 
 ``` json
 {
-  "city": "Quang Nam",
-  "lat": 15.5,
-  "lon": 108.0,
+  "city": "Hue",
+  "lat": 16.46,
+  "lon": 107.59,
   "temperature_C": 28,
-  "humidity": 85,
-  "pressure": 1000,
-  "wind_speed": 60,
-  "weather_description": "Heavy Rain",
-  "rain_probability": 0.9,
-  "storm_probability": 0.4,
-  "alert_event": "Flood Warning",
+  "humidity": 75,
+  "pressure": 1005,
+  "wind_speed": 15,
+  "weather_description": "Cloudy",
+  "rain_probability": 0.3,
+  "storm_probability": 0.1,
+  "alert_event": "None",
+  "alert_description": null,
+  "alert_start": null,
+  "alert_end": null,
   "earthquake_mag": 0,
-  "fire_count": 0
+  "earthquake_place": null,
+  "fire_count": 0,
+  "fire_confidence_max": 0,
+  "timestamp": "2023-10-25T10:00:00",
+  "risk_polygon": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [107.0, 17.0],
+        [109.0, 17.0],
+        [109.0, 15.0],
+        [107.0, 15.0],
+        [107.0, 17.0]
+      ]
+    ]
+  }
 }
 ```
 
@@ -141,9 +159,9 @@ python main.py
 
 ``` json
 {
-  "safety_score": 45.2,
-  "risk_level": "Medium",
-  "details": "Prediction based on historical data at (15.5, 108.0) and current weather."
+  "safety_score": 68.5,
+  "risk_level": "Low",
+  "details": "Prediction for Hue at (16.46, 107.59)"
 }
 ```
 

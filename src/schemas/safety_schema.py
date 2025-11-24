@@ -42,6 +42,6 @@ class SafetyInput(BaseModel):
     risk_polygon: Optional[RiskGeometry] = None
 
 class SafetyOutput(BaseModel):
-    safety_score: float
+    safety_score: int
     risk_level: str
     details: str

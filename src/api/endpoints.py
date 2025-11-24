@@ -42,7 +42,7 @@ async def predict_safety(data: SafetyInput):
             risk_level = "Low"
 
         return SafetyOutput(
-            safety_score=round(score, 2),
+            safety_score=round(score),
             risk_level=risk_level,
             details=f"Prediction for {data.city} at ({data.lat}, {data.lon})"
         )

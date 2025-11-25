@@ -3,12 +3,12 @@ import pandas as pd
 import numpy as np
 import os
 from src.config import MODEL_PATH
-from src.processing.gis_processor import GisProcessor
+# from src.processing.gis_processor import GisProcessor # Có thể tạm ẩn nếu giscontent được truyền trực tiếp
 
 class SafetyPredictor:
     def __init__(self):
         self.model = None
-        self.gis = GisProcessor()
+        # self.gis = GisProcessor() # Tạm thời không dùng logic GIS cũ nếu input đã có giscontent
         self.load_model()
 
     def load_model(self):
@@ -18,91 +18,61 @@ class SafetyPredictor:
         else:
             print(f"Warning: Model not found at {MODEL_PATH}")
 
-    def is_point_in_polygon(self, lat, lon, geo_polygon):
-        """Kiểm tra điểm nằm trong đa giác (GeoJSON format)"""
-        if not geo_polygon or not geo_polygon.coordinates:
-            return False
-        # Lấy vòng cung ngoài cùng (Exterior Ring)
-        points = geo_polygon.coordinates[0] 
-        inside = False
-        j = len(points) - 1
-        for i in range(len(points)):
-            p1_lon, p1_lat = points[i][0], points[i][1]
-            p2_lon, p2_lat = points[j][0], points[j][1]
-            if ((p1_lat > lat) != (p2_lat > lat)) and \
-               (lon < (p2_lon - p1_lon) * (lat - p1_lat) / (p2_lat - p1_lat + 1e-9) + p1_lon):
-                inside = not inside
-            j = i
-        return inside
-
-    def predict_score(self, lat, lon, month, weather_context, risk_polygon=None):
+    def predict_score(self, data):
         """
-        Dự đoán điểm an toàn dựa trên:
-        1. Lịch sử & Địa hình (XGBoost) -> Trần điểm an toàn.
-        2. Thời tiết thực tế -> Trừ điểm.
-        3. Vùng rủi ro (Polygon) -> Thiết lập mức rủi ro tối thiểu (Sàn).
+        Tính điểm dựa trên format dữ liệu mới.
+        data: Object SafetyInput
         """
         
-        # 1. XGBoost: Tính toán Trần điểm an toàn (Safety Ceiling)
-        # Vùng địa lý xấu (lũ lụt nhiều) sẽ có trần điểm thấp hơn.
-        land_cover = self.gis.get_land_cover(lat, lon)
-        input_data = pd.DataFrame({'Latitude': [lat], 'Longitude': [lon], 'Start Month': [month], 'land_cover': [land_cover]})
+        # --- BƯỚC 1: XÁC ĐỊNH ĐIỂM CƠ SỞ (BASE SCORE) ---
+        # 100 điểm là an toàn tuyệt đối. Trừ dần dựa trên các mối đe dọa.
+        current_score = 100.0
         
-        try:
-            log_risk = self.model.predict(input_data)[0] if self.model else 0
-            log_risk = max(0, log_risk)
-        except:
-            log_risk = 5.0
-
-        # Công thức trần: 100 - (LogRisk * 1.2)
-        # VD: Rốn lũ (Risk=10) -> Max điểm là 88. An toàn (Risk=0) -> Max điểm là 100.
-        safety_ceiling = 100.0 - (log_risk * 1.2)
-
-        # 2. Đánh giá Mối đe dọa từ Thời tiết (Threat Assessment)
-        w_speed = weather_context.get('wind_speed', 0)
-        rain_prob = weather_context.get('rain_prob', 0)
-        storm_prob = weather_context.get('storm_prob', 0)
-
-        # Gió: >20km/h mới tính. Max 100đ.
-        threat_wind = 0
-        if w_speed > 20:
-            threat_wind = min(100, (w_speed - 20) * 1.0)
+        # --- BƯỚC 2: TRỪ ĐIỂM DỰA TRÊN CÁC CHỈ SỐ CỤ THỂ (METRICS) ---
+        
+        # A. Mưa (Precipitation) - Sử dụng ngưỡng chuẩn hóa
+    # Ví dụ: > 2.0 (tức là cao hơn trung bình 2 độ lệch chuẩn) là mưa lớn
+        if data.precip24 > 2.0: 
+            penalty = (data.precip24 - 2.0) * 10
+            current_score -= min(40, penalty)
             
-        # Mưa: Max 50đ
-        threat_rain = rain_prob * 50 
-        
-        # Bão: Max 90đ
-        threat_storm = storm_prob * 90
+        # B. Gió (Gust)
+        # Ví dụ: Gust Z-score > 1.5 là gió mạnh đáng kể
+        if data.gust6 > 1.5:
+            # Ở input này gust6 = 1.98 (> 1.5), code sẽ chạy vào đây
+            penalty = (data.gust6 - 1.5) * 15
+            current_score -= min(30, penalty)
+            
+        # C. Động đất (Earthquake)
+        # eq_mag -1.3 nghĩa là rất thấp hoặc không có số liệu, không trừ điểm
+        if data.eq_mag > 2.0: 
+            current_score -= 50
 
-        # Lấy yếu tố nguy hiểm nhất làm chủ đạo
-        current_threat = max(threat_wind, threat_rain, threat_storm)
-        
-        # Cộng thêm 10% từ các yếu tố phụ
-        secondary_threat = (threat_wind + threat_rain + threat_storm) - current_threat
-        current_threat += secondary_threat * 0.1
+        # D. Lũ (River Discharge)
+        # Giả định ngưỡng cảnh báo là X (cần chuẩn hóa dữ liệu này)
+        if data.river_discharge > 1000: # Ví dụ ngưỡng giả định
+             current_score -= 10
 
-        # 3. XỬ LÝ RISK POLYGON (Logic mới: Không phạt cộng dồn)
-        if risk_polygon:
-            if self.is_point_in_polygon(lat, lon, risk_polygon):
-                print("DEBUG: User is INSIDE Risk Polygon.")
-                
-                # Nếu nằm trong vùng rủi ro được khoanh vùng (nhưng không có số liệu thời tiết riêng):
-                # Ta giả định đây là vùng cảnh báo cấp 1.
-                # Đảm bảo Threat Score ít nhất là 30 (Mức cảnh báo/Vàng).
-                # Nếu thời tiết thực tế đã xấu hơn 30 (ví dụ bão), thì giữ nguyên số xấu đó.
-                # Nếu thời tiết thực tế đang tốt (mắt bão/sai số), thì nâng lên 30.
-                current_threat = max(current_threat, 30.0)
-                
-            else:
-                print("DEBUG: User is OUTSIDE Risk Polygon.")
-
-        # 4. Tính điểm cuối cùng
-        final_score = safety_ceiling - current_threat
+        # --- BƯỚC 3: ĐIỀU CHỈNH BẰNG NHÃN DỰ BÁO (LABELS) ---
+        # Nếu các nhãn label báo nguy hiểm, trừ thêm điểm "phạt" để đảm bảo an toàn
         
+        risk_labels = [data.rain_label, data.storm_label, data.flood_label]
+        high_risk_count = sum(1 for label in risk_labels if str(label).lower() in ['high', 'danger', 'severe'])
+        
+        current_score -= (high_risk_count * 15)
+
+        # Xử lý overall_hazard_prediction (Nếu model khác báo nguy hiểm, score không được cao)
+        if str(data.overall_hazard_prediction).lower() in ['high', 'extreme']:
+            current_score = min(current_score, 40.0) # Kẹp trần tối đa là 40 điểm
+        elif str(data.overall_hazard_prediction).lower() == 'medium':
+            current_score = min(current_score, 70.0)
+
+        # --- BƯỚC 4: XỬ LÝ GIS CONTENT (Nếu có) ---
+        if data.giscontent:
+            # Ví dụ: Nếu giscontent chứa thông tin vùng trũng thấp
+            pass 
+
         # Kẹp giá trị 0-100
-        final_score = max(0.0, min(100.0, final_score))
+        final_score = max(0.0, min(100.0, current_score))
         
-        print(f"DEBUG -> Ceiling: {safety_ceiling:.2f} | Threat: {current_threat:.2f}")
-        print(f"FINAL SCORE: {final_score:.2f}")
-
         return final_score

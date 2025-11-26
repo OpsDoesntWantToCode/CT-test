@@ -88,13 +88,20 @@ export default function HomePage() {
 
       const data = await response.json();
       
-      // LƯU Ý: Backend trả về cấu trúc: { status, message, safety_score, nearest_risk, ... }
-      // Cần đảm bảo setSafetyInfo map đúng dữ liệu vào UI
+      // Ánh xạ dữ liệu từ Backend sang format mà Frontend đang dùng để hiển thị
+      const mappedRisks = (data.all_risks || []).map((item: any) => ({
+          disaster_type: item.type,       // Backend trả 'type' -> UI cần 'disaster_type'
+          location: item.location,        // Giữ nguyên
+          distance: item.distance_km,     // Backend trả 'distance_km' -> UI cần 'distance'
+          severity: item.level,           // Backend trả 'level' -> UI cần 'severity'
+          time_ago: "Live update"         // Backend chưa có -> Tự thêm chuỗi hiển thị
+      }));
+
       setSafetyInfo({
           safety_score: data.safety_score,
-          risk_level: data.nearest_risk?.level || 'Safe', // Backend trả về 'level', frontend có thể cần map lại
+          risk_level: data.nearest_risk?.level || 'Safe',
           message: data.message,
-          nearby_risks: data.all_risks || [] 
+          nearby_risks: mappedRisks       // Sử dụng danh sách đã được map lại
       });
       
     } catch (error) {
@@ -151,11 +158,28 @@ export default function HomePage() {
   useEffect(() => {
     const fetchLocations = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/v1/locations');
+        // Đảm bảo đường dẫn API đúng (đã sửa ở bước trước)
+        const res = await fetch('http://localhost:8000/api/v1/map/locations');
+        
+        // 1. Kiểm tra nếu mạng lỗi hoặc API trả về 404/500
+        if (!res.ok) {
+            console.warn("API Locations returned status:", res.status);
+            setAllLocations([]); // Set rỗng để không bị lỗi
+            return;
+        }
+
         const data = await res.json();
-        setAllLocations(data);
+
+        // 2. Kiểm tra dữ liệu trả về CÓ PHẢI LÀ MẢNG (Array) không?
+        if (Array.isArray(data)) {
+            setAllLocations(data);
+        } else {
+            console.error("Dữ liệu locations không phải là mảng:", data);
+            setAllLocations([]); // Set rỗng nếu dữ liệu sai định dạng
+        }
       } catch (e) {
         console.error("Lỗi load locations:", e);
+        setAllLocations([]); // Luôn đảm bảo là mảng dù có lỗi
       }
     };
     fetchLocations();
@@ -167,6 +191,11 @@ export default function HomePage() {
     setSearchQuery(e.target.value); // Giữ nguyên chữ hoa/thường trên ô input cho đẹp
     
     if (query.length > 0) {
+      if (!Array.isArray(allLocations)) {
+          console.warn("allLocations is not an array, skipping search.");
+          setFilteredLocations([]);
+          return;
+      }
       // 1. LỌC: Tìm trong cả TÊN (Hanoi) và LOẠI (Rain, Storm)
       let filtered = allLocations.filter(loc => 
         loc.name.toLowerCase().includes(query) || 

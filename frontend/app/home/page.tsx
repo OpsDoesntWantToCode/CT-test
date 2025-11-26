@@ -73,19 +73,30 @@ export default function HomePage() {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return parseFloat((R * c).toFixed(1));
   };
+  
   const fetchSafetyScore = async (lat: number, lon: number) => {
     setCalculating(true);
     try {
-      // Đổi URL này cho đúng với backend của bạn
-      const response = await fetch('http://localhost:8000/api/v1/risk-analysis', { 
+      // SAI: const response = await fetch('http://localhost:8000/api/v1/risk-analysis', ...
+      
+      // ĐÚNG: Gọi vào endpoint check-risk của map_risk.py
+      const response = await fetch('http://localhost:8000/api/v1/map/check-risk', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lat: lat, lon: lon }) 
       });
 
       const data = await response.json();
-      setSafetyInfo(data); // Lưu kết quả backend trả về
-      console.log("Điểm an toàn nhận được:", data.safety_score);
+      
+      // LƯU Ý: Backend trả về cấu trúc: { status, message, safety_score, nearest_risk, ... }
+      // Cần đảm bảo setSafetyInfo map đúng dữ liệu vào UI
+      setSafetyInfo({
+          safety_score: data.safety_score,
+          risk_level: data.nearest_risk?.level || 'Safe', // Backend trả về 'level', frontend có thể cần map lại
+          message: data.message,
+          nearby_risks: data.all_risks || [] 
+      });
+      
     } catch (error) {
       console.error("Lỗi tính điểm an toàn:", error);
     } finally {
@@ -584,33 +595,55 @@ export default function HomePage() {
                 </div>
 
                 <div className="relative w-32 h-32 flex items-center justify-center">
-                  <svg
-                    className="w-full h-full -rotate-90"
-                    viewBox="0 0 100 100"
-                  >
-                    <circle
-                      className="text-white/20"
-                      strokeWidth="8"
-                      stroke="currentColor"
-                      fill="transparent"
-                      r="40"
-                      cx="50"
-                      cy="50"
-                    />
-                    <circle
-                      className="text-white"
-                      strokeWidth="8"
-                      strokeDasharray={251.2}
-                      strokeDashoffset={251.2 * (1 - 78 / 100)}
-                      strokeLinecap="round"
-                      stroke="currentColor"
-                      fill="transparent"
-                      r="40"
-                      cx="50"
-                      cy="50"
-                    />
-                  </svg>
-                  <span className="absolute text-3xl font-bold">{safetyInfo?.safety_score ?? 0}%</span>
+                  {/* Tính toán các thông số vòng tròn */}
+                  {(() => {
+                    const r = 40;
+                    const circumference = 2 * Math.PI * r; // Chu vi ~ 251.3
+                    const score = safetyInfo?.safety_score ?? 0; // Lấy điểm thật, mặc định 0
+                    const offset = circumference - (score / 100) * circumference; // Tính độ hở
+
+                    // Xác định màu sắc dựa trên mức độ rủi ro (đồng bộ với tiêu đề)
+                    let circleColor = "text-green-500"; // Mặc định an toàn (Safe)
+                    if (safetyInfo?.risk_level === 'High') circleColor = "text-red-500";
+                    else if (safetyInfo?.risk_level === 'Medium') circleColor = "text-orange-400";
+                    else if (safetyInfo?.risk_level === 'Low') circleColor = "text-yellow-400";
+
+                    return (
+                      <svg
+                        className="w-full h-full -rotate-90 transition-all duration-1000 ease-out"
+                        viewBox="0 0 100 100"
+                      >
+                        {/* Vòng tròn nền (mờ) */}
+                        <circle
+                          className="text-white/20"
+                          strokeWidth="8"
+                          stroke="currentColor"
+                          fill="transparent"
+                          r={r}
+                          cx="50"
+                          cy="50"
+                        />
+                        {/* Vòng tròn điểm số (chạy theo %) */}
+                        <circle
+                          className={`${circleColor} transition-all duration-1000 ease-out`}
+                          strokeWidth="8"
+                          strokeDasharray={circumference}
+                          strokeDashoffset={offset}
+                          strokeLinecap="round"
+                          stroke="currentColor"
+                          fill="transparent"
+                          r={r}
+                          cx="50"
+                          cy="50"
+                        />
+                      </svg>
+                    );
+                  })()}
+                  
+                  {/* Số điểm ở giữa */}
+                  <span className="absolute text-3xl font-bold animate-in fade-in zoom-in duration-700">
+                    {safetyInfo?.safety_score ?? 0}%
+                  </span>
                 </div>
               </div>
 

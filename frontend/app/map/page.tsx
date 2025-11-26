@@ -1,8 +1,7 @@
 'use client'
 
 import 'leaflet/dist/leaflet.css'
-import { useState, useEffect } from 'react' // [FIX] Thêm useEffect
-import { useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Card } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
 import { Button } from '../../components/ui/button'
@@ -18,43 +17,50 @@ import dynamic from 'next/dynamic'
 import UserMarker from '../../components/UserMarker.client'
 import FlyToLocation from '../../components/FlyToLocation'
 
+// --- 1. IMPORT CÁC COMPONENT CỦA LEAFLET (DỰA TRÊN CODE BẠN CUNG CẤP) ---
 const MapContainer = dynamic(() => import("react-leaflet").then(m => m.MapContainer), { ssr: false }) as any
 const TileLayer    = dynamic(() => import("react-leaflet").then(m => m.TileLayer), { ssr: false }) as any
-const Marker       = dynamic(() => import("react-leaflet").then(m => m.Marker), { ssr: false }) as any
-const Popup        = dynamic(() => import("react-leaflet").then(m => m.Popup), { ssr: false }) as any
 const Polygon      = dynamic(() => import("react-leaflet").then(m => m.Polygon), { ssr: false }) as any
 const Circle       = dynamic(() => import("react-leaflet").then(m => m.Circle), { ssr: false }) as any
+// ------------------------------------------------------------------------
 
 export default function MapPage() {
   const router = useRouter()
   const language = useStore((state) => state.language)
-  const t = useTranslation(language)
+  const isDarkMode = useStore((state) => state.isDarkMode)
   const [searchQuery, setSearchQuery] = useState('')
 
-  // [FIX] Khai báo State để chứa dữ liệu từ Backend
+  // State chứa dữ liệu bản đồ
   const [zones, setZones] = useState<any[]>([]) 
   const [loading, setLoading] = useState(true)
+  const [selectedZone, setSelectedZone] = useState<any | null>(null)
+  const [L, setL] = useState<any>(null)
 
+  // --- 2. LOGIC MÀU SẮC (LẤY TỪ CODE CŨ) ---
   const severityColors: any = {
     high: 'bg-red-500',
     medium: 'bg-orange-500',
     low: 'bg-yellow-500',
     safe: 'bg-green-500',
+    info: 'bg-green-500',    // Thêm info -> Xanh lá
+    default: 'bg-green-500', // Mặc định -> Xanh lá
   }
 
-  // Helper để lấy màu vẽ lên bản đồ (Map color)
   const getZoneColor = (severity: string) => {
-    switch (severity) {
+    const level = severity?.toLowerCase() || 'medium';
+    switch (level) {
       case 'high': return 'red';
       case 'medium': return 'orange';
       case 'low': return 'yellow';
       case 'safe': return 'green';
-      default: return 'blue';
+      case 'info': return 'green'; // Thêm case Info -> Xanh lá
+      default: return 'green';     // Đổi default từ blue -> green
     }
   };
 
   const getSeverityLabel = (severity: string) => {
-    switch (severity) {
+    const level = severity?.toLowerCase();
+    switch (level) {
       case 'high': return 'High Risk (0-24)'
       case 'medium': return 'Medium Risk (25-49)'
       case 'low': return 'Low Risk (50-79)'
@@ -62,55 +68,47 @@ export default function MapPage() {
       default: return severity
     }
   }
+  // ------------------------------------------
 
-  const isDarkMode = useStore((state) => state.isDarkMode)
-  
-  // [FIX] Gọi API lấy dữ liệu thật
+  // --- 3. FETCH DỮ LIỆU TỪ BACKEND PYTHON & MAP SANG FORMAT CŨ ---
   useEffect(() => {
     const fetchRiskZones = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/risk-zones'); 
-        const data = await response.json();
-        setZones(data); // Cập nhật state
+        // Gọi API Backend Python
+        const response = await fetch('http://localhost:8000/api/v1/map/zones'); 
+        const backendData = await response.json();
+
+        // Map dữ liệu từ Backend sang format Frontend mong muốn
+        const formattedZones = backendData.map((item: any) => ({
+           id: item.id || Math.random().toString(),
+           name: item.id, // Backend đang dùng id làm tên (location_name)
+           // Xác định loại hình vẽ: Nếu có path -> polygon, không có -> circle
+           type: (item.path && item.path.length > 0) ? 'polygon' : 'circle',
+           path: item.path,
+           center: item.center, // [lat, lon]
+           radius: 3000, // Mặc định 3km nếu là hình tròn (Backend chưa trả radius)
+           severity: item.risk_level?.toLowerCase() || 'medium', // Map 'High' -> 'high'
+           description: item.info?.type || 'Unknown Risk'
+        }));
+
+        setZones(formattedZones);
       } catch (error) {
         console.error("Failed to fetch map data:", error);
       } finally {
-        setLoading(false); // Tắt trạng thái loading
+        setLoading(false);
       }
     };
     fetchRiskZones();
   }, []);
 
-  // Load Leaflet library on client to create divIcon markers
+  // Load Leaflet library
   useEffect(() => {
     import('leaflet')
       .then((mod) => setL(mod.default))
       .catch((e) => console.error('Leaflet load failed', e));
   }, []);
 
-  // State để giữ map instance và vùng được chọn
-  const [mapInstance, setMapInstance] = useState<any>(null)
-  const [selectedZone, setSelectedZone] = useState<any | null>(null)
-  const [L, setL] = useState<any>(null)
-
-  // Helper: tính centroid từ polygon (nếu backend không trả `center`)
-  const computeCentroid = (path: any[]) => {
-    if (!path || path.length === 0) return null
-    let lat = 0
-    let lng = 0
-    path.forEach((p: any) => {
-      lat += p[0]
-      lng += p[1]
-    })
-    return [lat / path.length, lng / path.length]
-  }
-
-  // When selectedZone changes, flying is handled by the FlyToLocation component
-  useEffect(() => {
-    // no-op: FlyToLocation (rendered inside MapContainer) will call map.flyTo
-  }, [selectedZone])
-
-  const markerCenter = selectedZone ? (selectedZone.center || (selectedZone.path ? computeCentroid(selectedZone.path) : null)) : null
+  const markerCenter = selectedZone ? (selectedZone.center || (selectedZone.path ? selectedZone.path[0] : null)) : null
 
   return (
     <div className="min-h-screen relative text-white overflow-hidden">
@@ -157,7 +155,7 @@ export default function MapPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1">
-            {/* Map Area with Leaflet */}
+            {/* Map Area */}
             <div className="lg:col-span-2 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 relative min-h-[500px] overflow-hidden">
               <Button
                 size="sm"
@@ -169,22 +167,21 @@ export default function MapPage() {
               </Button>
 
               <MapContainer
-                center={[21.0285, 105.8542]} // Có thể đổi thành center động nếu muốn
-                zoom={6}  // Zoom xa ra một chút để thấy toàn Việt Nam
+                center={[21.0285, 105.8542]}
+                zoom={6}
                 className="w-full h-full"
-                whenCreated={(map: any) => setMapInstance(map)}
               >
                 <TileLayer
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   attribution='&copy; OpenStreetMap contributors'
                 />
 
-                {/* [FIX] Render dữ liệu thật từ state ZONES */}
+                {/* --- 4. VẼ VÙNG AN TOÀN / RỦI RO (ÁP DỤNG CODE TỪ FILE TS BẠN GỬI) --- */}
                 {zones.map((zone, index) => {
                    const color = getZoneColor(zone.severity);
                    return (
                     <div key={index}>
-                      {/* 2. Vẽ Polygon (Đa giác) nếu backend trả về type='polygon' */}
+                      {/* Vẽ Đa giác (Polygon) */}
                       {zone.type === 'polygon' && zone.path && (
                         <Polygon 
                           positions={zone.path}
@@ -192,22 +189,23 @@ export default function MapPage() {
                         />
                       )}
 
-                      {/* 3. Vẽ Circle (Hình tròn) nếu backend trả về type='circle' */}
-                      {zone.type === 'circle' && zone.radius && (
+                      {/* Vẽ Hình tròn (Circle) */}
+                      {zone.type === 'circle' && (
                         <Circle 
                           center={zone.center}
                           pathOptions={{ color: color, fillColor: color, fillOpacity: 0.4 }}
-                          radius={zone.radius}
+                          radius={zone.radius || 3000}
                         />
                       )}
                     </div>
                   )
                 })}
+                {/* --------------------------------------------------------------------- */}
 
-                {/* Marker hiển thị khi user chọn 1 zone từ cột bên phải */}
+                {/* Fly to selected zone */}
                 {markerCenter && (
                   <>
-                    <FlyToLocation lat={Number(markerCenter[0])} lon={Number(markerCenter[1])} zoom={14} />
+                    <FlyToLocation lat={Number(markerCenter[0])} lon={Number(markerCenter[1])} zoom={13} />
                     {L && (
                       <UserMarker
                         position={{ lat: Number(markerCenter[0]), lon: Number(markerCenter[1]) }}
@@ -227,9 +225,8 @@ export default function MapPage() {
               </Button>
             </div>
 
-            {/* Legend & Risk Zones List */}
+            {/* List Bên Phải */}
             <div className="space-y-4">
-              {/* Legend giữ nguyên... */}
               <Card className="bg-black/40 backdrop-blur-md border-white/10 p-4 text-white">
                 <h3 className="text-sm font-semibold mb-3">Risk Levels</h3>
                 <div className="space-y-2">
@@ -252,9 +249,8 @@ export default function MapPage() {
                 </div>
               </Card>
 
-              {/* Active Risk Zones List */}
+              {/* Danh sách Zones Active */}
               <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                {/* [FIX] Duyệt qua danh sách ZONES thật */}
                 {loading ? (
                   <p className="text-center text-white/50 text-sm">Loading map data...</p>
                 ) : (
@@ -269,7 +265,7 @@ export default function MapPage() {
                           <MapPin className="h-4 w-4 flex-shrink-0 text-primary" />
                           <div className="min-w-0">
                             <h4 className="text-sm font-semibold truncate">{zone.name}</h4>
-                            <p className="text-xs text-white/70">Active risk zone</p>
+                            <p className="text-xs text-white/70">{zone.description}</p>
                           </div>
                         </div>
                         <Badge className={`${severityColors[zone.severity] || 'bg-gray-500'} text-white text-xs whitespace-nowrap`}>

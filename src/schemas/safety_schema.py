@@ -1,40 +1,31 @@
-from pydantic import BaseModel
-from typing import Optional, Any, Dict
+# src/schemas/safety_schema.py
+from pydantic import BaseModel, Field
+from typing import Literal
 
 class SafetyInput(BaseModel):
-    # 1. Định danh & Vị trí
-    location: str
-    lat: float
-    lon: float
+    # Thông tin vị trí
+    location: str = Field(..., description="Tên địa điểm (Vd: Hà Nội)")
+    lat: float = Field(..., description="Vĩ độ")
+    lon: float = Field(..., description="Kinh độ")
     
-    # 2. Thời tiết cơ bản
-    temperature: float
-    humidity: float
-    pressure: float
-    wind_speed: float
+    # Thông tin thời tiết cơ bản
+    temperature: float = Field(..., description="Nhiệt độ (°C)")
+    humidity: float = Field(..., description="Độ ẩm (%)")
+    pressure: float = Field(..., description="Áp suất khí quyển (hPa)")
+    wind_speed: float = Field(..., description="Tốc độ gió (m/s)")
     
-    # 3. Chỉ số chi tiết (Mưa/Gió/Lũ)
-    precip6: float        # Lượng mưa 6h
-    precip24: float       # Lượng mưa 24h
-    gust6: float          # Gió giật 6h
-    river_discharge: float # Lưu lượng dòng chảy sông
+    # Thông tin nâng cao (Mưa, Gió giật)
+    precip6: float = Field(0.0, description="Lượng mưa trong 6 giờ qua (mm)")
+    precip24: float = Field(0.0, description="Lượng mưa trong 24 giờ qua (mm)")
+    gust6: float = Field(0.0, description="Tốc độ gió giật trong 6 giờ qua (m/s)")
     
-    # 4. Động đất
-    eq_mag: float         # Độ lớn động đất
-    eq_dist: float        # Khoảng cách đến tâm chấn
-    
-    # 5. Các nhãn phân loại (Labels - Có thể là kết quả từ model khác)
-    rain_label: str
-    wind_label: str
-    storm_label: str
-    flood_label: str
-    earthquake_label: str
-    
-    # 6. Dự báo tổng quan & GIS
-    overall_hazard_prediction: str  # Dự đoán rủi ro tổng thể
-    giscontent: Optional[Dict[str, Any]] = None # Thông tin GIS (dạng JSON object)
+    # Thông tin thiên tai (Thủy văn, Động đất)
+    river_discharge: float = Field(-1.0, description="Lưu lượng nước sông (m3/s). -1 nếu không có dữ liệu")
+    eq_mag: float = Field(-1.0, description="Độ lớn động đất (Richter). -1 nếu không có")
+    eq_dist: float = Field(-1.0, description="Khoảng cách đến tâm chấn (km). -1 nếu không có")
 
 class SafetyOutput(BaseModel):
-    safety_score: int
-    risk_level: str
-    details: str
+    location: str
+    safety_score: float
+    risk_level: Literal['Info', 'Low', 'Medium', 'High']
+    suggestion: str

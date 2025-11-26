@@ -1,37 +1,30 @@
+# src/api/endpoints.py
 from fastapi import APIRouter, HTTPException
 from src.schemas.safety_schema import SafetyInput, SafetyOutput
 from src.ml.predictor import SafetyPredictor
 
 router = APIRouter()
+
+# Khởi tạo predictor (Singleton)
 predictor = SafetyPredictor()
 
-@router.post("/predict", response_model=SafetyOutput)
-async def predict_safety(data: SafetyInput):
+@router.post("/safety-score", response_model=SafetyOutput)
+async def calculate_safety_score(data: SafetyInput):
     try:
-        # Gọi hàm dự đoán (truyền toàn bộ object data vào)
-        score = predictor.predict_score(data)
-
-        # Phân loại rủi ro dựa trên điểm số
-        risk_level = "Info"
-        if score < 25: 
-            risk_level = "High"
-        elif score < 50: 
-            risk_level = "Medium"
-        elif score < 80: 
-            risk_level = "Low"
-
-        # Tạo chuỗi chi tiết từ các nhãn đầu vào
-        detail_msg = (
-            f"Loc: {data.location}. "
-            f"Overall Hazard: {data.overall_hazard_prediction}. "
-            f"Rain: {data.precip24}mm, Wind Gust: {data.gust6}."
-        )
+        # 1. Tính điểm an toàn từ mô hình
+        score = predictor.predict_risk(data)
+        
+        # 2. Xác định mức độ rủi ro
+        risk_level = predictor.get_risk_level(score)
+        
+        # 3. Tạo gợi ý đơn giản
+        suggestion = "An toàn." if risk_level in ["Info", "Low"] else "Cần đề phòng thiên tai."
 
         return SafetyOutput(
-            safety_score=round(score),
+            location=data.location,
+            safety_score=round(score, 2),
             risk_level=risk_level,
-            details=detail_msg
+            suggestion=suggestion
         )
-
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

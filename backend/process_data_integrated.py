@@ -33,20 +33,51 @@ def process_integrated_data(csv_file_path):
     # Đọc dữ liệu từ CSV
     df = pd.read_csv(csv_file_path)
     
-    # Lọc bỏ những dòng không có cảnh báo rủi ro (tùy chọn, dựa trên logic cũ)
-    # Nếu muốn chấm điểm cho TẤT CẢ địa điểm, hãy comment dòng dưới đây lại
+    # Tách 2 nhóm: (1) các điểm có rủi ro (không phải 'No')
+    #              (2) các điểm được dán nhãn 'No' (sẽ hiển thị vùng an toàn màu xanh)
     if 'overall_hazard_prediction' in df.columns:
         risk_df = df[df['overall_hazard_prediction'] != 'No'].copy()
+        safe_df = df[df['overall_hazard_prediction'] == 'No'].copy()
     else:
-        risk_df = df.copy() # Xử lý hết nếu không có cột lọc
-    
+        # Nếu không có cột này thì xử lý toàn bộ như rủi ro (không tạo vùng safe)
+        risk_df = df.copy()
+        safe_df = pd.DataFrame(columns=df.columns)
+
+    # Đường dẫn file output (nếu đã có, ta sẽ giữ nguyên các vùng rủi ro cũ)
+    output_dir = os.path.join("data", "processed")
+    os.makedirs(output_dir, exist_ok=True)
+    output_file = os.path.join(output_dir, "processed_risk_zones.json")
+
+    # Nếu file đã tồn tại -> load và giữ nguyên các mục đã có (tránh thay đổi màu sắc)
     results = []
+    existing_locations = set()
+    if os.path.exists(output_file):
+        try:
+            with open(output_file, "r", encoding="utf-8") as f:
+                results = json.load(f)
+            # Ghi lại tên location đã có để tránh xử lý lại
+            for ev in results:
+                name = ev.get("location_name")
+                if name:
+                    existing_locations.add(name)
+            print(f"⚠️ Tìm thấy file {output_file}. Giữ nguyên {len(results)} mục hiện có, sẽ chỉ thêm/ghi đè vùng an toàn 'No'.")
+        except Exception:
+            # Nếu load lỗi, reset results và xử lý bình thường
+            results = []
+            existing_locations = set()
+
     db = SessionLocal()
-    
-    print(f"--- BẮT ĐẦU XỬ LÝ {len(risk_df)} ĐỊA ĐIỂM ---")
+
+    print(f"--- BẮT ĐẦU XỬ LÝ {len(risk_df)} ĐỊA ĐIỂM RỦI RO + {len(safe_df)} VÙNG AN TOÀN ---")
 
     try:
+        # --- Vòng lặp 1: xử lý các địa điểm có rủi ro như trước ---
+        # Nếu file kết quả đã tồn tại, ta sẽ không tính lại các mục rủi ro đã có
         for index, row in risk_df.iterrows():
+            # Nếu mục này đã tồn tại trong file processed thì bỏ qua để giữ nguyên màu / score
+            loc_name = str(row.get('location', 'Unknown Location'))
+            if loc_name in existing_locations:
+                continue
             # --- PHẦN 1: CHUẨN BỊ INPUT CHO AI (THEO SCHEMA MỚI) ---
             # Mapping từ tên cột trong CSV -> tên trường trong SafetyInput
             # Cú pháp: row.get('TÊN_CỘT_TRONG_CSV', GIÁ_TRỊ_MẶC_ĐỊNH)
@@ -89,10 +120,10 @@ def process_integrated_data(csv_file_path):
                 ai_risk_level = "Unknown"
 
             # --- PHẦN 3: TÍNH VÙNG ẢNH HƯỞNG BẰNG GIS (Logic cũ) ---
-            # Cần xác định loại thảm họa và cường độ để vẽ vòng tròn
+            # Cần xác định loại thảm họa và cường độ để vẽ bán kính
             # Logic này lấy từ cột 'overall_hazard_prediction' của CSV cũ
             disaster_type = str(row.get('overall_hazard_prediction', 'unknown')).lower()
-            
+
             # Tính cường độ (Intensity) để vẽ bán kính
             intensity = 0.0
             if 'storm' in disaster_type or 'wind' in disaster_type:
@@ -121,9 +152,39 @@ def process_integrated_data(csv_file_path):
                 "impact_polygon": polygon       # GeoJSON vùng ảnh hưởng
             }
             results.append(event_result)
-            
+
             if len(results) % 50 == 0:
                 print(f"🚀 Đã xử lý {len(results)} địa điểm...")
+
+        # --- Vòng lặp 2: thêm các vùng 'No' như vùng an toàn (safe zones) màu xanh ---
+        for index, row in safe_df.iterrows():
+            ai_input_data = {
+                "location": str(row.get('location', 'Unknown Location')),
+                "lat": float(row.get('lat', 0.0)),
+                "lon": float(row.get('lon', 0.0)),
+            }
+
+            # Thiết lập giá trị an toàn cố định cho vùng 'No'
+            final_safety_score = 95
+            ai_risk_level = "Safe"
+            disaster_type = "safe_zone"
+            intensity = 0.0
+
+            polygon = calculate_influence_area(db, ai_input_data['lat'], ai_input_data['lon'], disaster_type, intensity)
+            color_info = get_risk_classification(final_safety_score)
+
+            event_result = {
+                "location_name": ai_input_data['location'],
+                "lat": ai_input_data['lat'],
+                "lon": ai_input_data['lon'],
+                "disaster_type": disaster_type,
+                "intensity": intensity,
+                "safety_score": int(final_safety_score),
+                "risk_level": ai_risk_level,
+                "color_code": color_info['color_code'],
+                "impact_polygon": polygon
+            }
+            results.append(event_result)
 
     except Exception as e:
         print(f"❌ Lỗi trong vòng lặp chính: {e}")

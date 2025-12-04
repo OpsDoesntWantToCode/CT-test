@@ -1,0 +1,21 @@
+"""
+OAuth2 Configuration for Google Login
+"""
+import os
+from authlib.integrations.starlette_client import OAuth
+from dotenv import load_dotenv
+
+# OAuth Configuration
+oauth = OAuth()
+load_dotenv()
+
+# Google OAuth
+oauth.register(
+    name='google',
+    client_id="GOOGLE_CLIENT_ID",
+    client_secret='GOOGLE_CLIENT_SECRET',
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
+)

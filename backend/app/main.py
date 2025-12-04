@@ -14,7 +14,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # ------------------------------------------------
 
 # Import các router con
-from app.routers import map_risk, ai_score, login_register, ai_hazard, rescue
+from app.routers import map_risk, ai_score, login_register, ai_hazard, rescue, sos
 
 class SignUpRequest(BaseModel):
     email: EmailStr
@@ -66,6 +66,8 @@ app.include_router(ai_hazard.router, prefix="/api/v1/hazard", tags=["AI Hazard P
 app.include_router(login_register.router, prefix="/api/auth", tags=["Authentication"])
 # 5. Router Tìm trạm cứu hộ -> /api/v1/rescue/...
 app.include_router(rescue.router, prefix="/api/v1/rescue", tags=["Rescue Finder"])
+# 6. Router SOS Khẩn cấp -> /api/sos/...
+app.include_router(sos.router, prefix="/api/v1/sos", tags=["SOS Real System"])
 
 @app.get("/")
 def health_check():
@@ -75,3 +77,4 @@ def health_check():
 # Đoạn này để chạy file trực tiếp bằng python app/main.py (nếu muốn)
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+    

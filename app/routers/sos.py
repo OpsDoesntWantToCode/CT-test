@@ -1,18 +1,20 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
-from pydantic import BaseModel
+# app/routers/sos.py
+from fastapi import APIRouter, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
 from typing import Optional
 from datetime import datetime
 import uuid
 import json
 import os
 
-# Import các module thật của bạn
-from app.core.rescue_finder import rescue_finder  # Import instance từ file bạn đã upload
-from app.core.notification import send_sos_email  # Import hàm gửi mail vừa tạo
+# Import các module từ repo của bạn
+from app.core.rescue_finder import rescue_finder 
+from app.core.notification import send_sos_email
+from app.schemas.sos import SOSRequest, SOSResponse, LocationUpdate 
+from app.core.socket_manager import manager # Import manager vừa tạo
 
 router = APIRouter()
 
-# --- Database giả lập bằng File JSON (Persistent Storage) ---
+# --- Database Mock (Giữ nguyên logic của bạn) ---
 DB_FILE = "alerts_db.json"
 
 def load_alerts():
@@ -27,73 +29,58 @@ def save_alert(alert_id, data):
     with open(DB_FILE, "w") as f:
         json.dump(db, f, indent=4, default=str)
 
-# --- Schemas ---
-class SOSRequest(BaseModel):
-    latitude: float
-    longitude: float
-    user_id: str
-    user_email: Optional[str] = "nguoinha@example.com" # Email nhận cảnh báo
-    medical_info: Optional[str] = "Không có"
-    risk_context: Optional[str] = "Khẩn cấp"
+def update_alert_location(alert_id, lat, long, battery):
+    """Hàm cập nhật vị trí mới nhất vào DB"""
+    db = load_alerts()
+    if alert_id in db:
+        db[alert_id]["location"] = {"lat": lat, "long": long}
+        db[alert_id]["battery_level"] = battery
+        db[alert_id]["last_updated"] = datetime.now()
+        with open(DB_FILE, "w") as f:
+            json.dump(db, f, indent=4, default=str)
 
-class SOSResponse(BaseModel):
-    alert_id: str
-    status: str
-    message: str
-    nearest_station: Optional[dict] = None
-
-# --- Logic Xử lý ---
-
+# --- Background Task ---
 def process_emergency_logic(alert_id: str, data: SOSRequest):
-    """Hàm chạy ngầm: Tìm trạm, Gửi mail, Cập nhật DB"""
-    
-    # 1. Tìm trạm cứu hộ gần nhất THẬT từ CSV
-    # rescue_finder đã được load sẵn dữ liệu từ Vietnam_Rescue.csv
+    """Tìm trạm & Gửi mail"""
+    # 1. Tìm trạm cứu hộ
     nearest = rescue_finder.find_nearest_station(data.latitude, data.longitude)
     
-    status_msg = "Dispatching"
-    responder_info = None
-
-    if nearest:
-        responder_info = nearest
-        print(f"🚑 [DISPATCH] Điều phối đơn vị: {nearest['Name']} - Cách {nearest['distance_km']}km")
-        status_msg = "Dispatched"
-    else:
-        print("⚠️ [DISPATCH] Không tìm thấy trạm cứu hộ trong dữ liệu CSV!")
-        status_msg = "Pending - No Station Found"
-
-    # 2. Gửi Email THẬT
+    status_msg = "Dispatched" if nearest else "Pending"
+    
+    # 2. Gửi Email
     location = {"lat": data.latitude, "long": data.longitude}
     email_sent = send_sos_email(data.user_email, location, data.medical_info, nearest)
 
-    # 3. Cập nhật trạng thái vào 'Database' JSON
+    # 3. Lưu DB ban đầu
     alert_data = {
         "created_at": datetime.now(),
         "user_id": data.user_id,
         "location": location,
         "status": status_msg,
-        "responder": responder_info,
+        "responder": nearest,
         "medical_info": data.medical_info,
-        "email_notified": email_sent
+        "email_notified": email_sent,
+        "history": [] # Lưu lịch sử di chuyển
     }
     save_alert(alert_id, alert_data)
 
+# --- API ENDPOINTS ---
 
 @router.post("/activate", response_model=SOSResponse)
 async def activate_sos(data: SOSRequest, background_tasks: BackgroundTasks):
-    # 1. Tạo ID định danh
+    """
+    Bước 1: User gọi API này khi nhấn nút SOS.
+    Trả về alert_id để sau đó User dùng kết nối WebSocket.
+    """
     alert_id = str(uuid.uuid4())
     
-    # 2. Tìm nhanh trạm cứu hộ (để trả về ngay cho UI hiển thị)
-    # Sử dụng logic thực tế từ RescueFinder
     nearest_station = rescue_finder.find_nearest_station(data.latitude, data.longitude)
     
-    # 3. Đẩy việc gửi mail và lưu DB vào background để API phản hồi nhanh
     background_tasks.add_task(process_emergency_logic, alert_id, data)
 
-    message = "Đã nhận tín hiệu SOS."
+    message = "Đã gửi tín hiệu SOS!"
     if nearest_station:
-        message = f"Đã tìm thấy đơn vị {nearest_station['Name']} cách {nearest_station['distance_km']}km."
+        message = f"Đơn vị {nearest_station['Name']} đang được điều động."
 
     return SOSResponse(
         alert_id=alert_id,
@@ -102,10 +89,37 @@ async def activate_sos(data: SOSRequest, background_tasks: BackgroundTasks):
         nearest_station=nearest_station
     )
 
-@router.get("/status/{alert_id}")
-async def get_alert_status(alert_id: str):
-    """API để Frontend polling cập nhật trạng thái cứu hộ (Use Case 4.6)"""
-    db = load_alerts()
-    if alert_id not in db:
-        raise HTTPException(status_code=404, detail="Alert not found")
-    return db[alert_id]
+@router.websocket("/ws/{alert_id}")
+async def websocket_sos_tracking(websocket: WebSocket, alert_id: str):
+    """
+    Bước 2: Real-time Tracking (Use Case 4.6 & Continuous Sharing)
+    Frontend gọi: ws://domain/api/v1/sos/ws/{alert_id}
+    """
+    await manager.connect(websocket, alert_id)
+    try:
+        while True:
+            # Nhận dữ liệu vị trí liên tục từ User App
+            data = await websocket.receive_json()
+            
+            # Giả sử client gửi lên JSON: {"lat": 10.7, "long": 106.6, "battery": 80}
+            lat = data.get("lat")
+            long = data.get("long")
+            battery = data.get("battery")
+            
+            # 1. Cập nhật vào DB (để lưu vết)
+            update_alert_location(alert_id, lat, long, battery)
+            
+            # 2. Broadcast cho Dashboard cứu hộ (nếu họ đang xem alert này)
+            # Giả lập phản hồi từ server: Tính lại khoảng cách tới trạm
+            # (Trong thực tế đoạn này phức tạp hơn)
+            response_msg = {
+                "type": "tracking_update",
+                "user_location": {"lat": lat, "long": long},
+                "server_time": str(datetime.now())
+            }
+            
+            await manager.broadcast(response_msg, alert_id)
+            
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, alert_id)
+        # Có thể thêm logic: Nếu mất kết nối > 5 phút -> Báo động đỏ

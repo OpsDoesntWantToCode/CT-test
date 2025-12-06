@@ -5,8 +5,8 @@ import os
 
 # Cấu hình email (Nên để trong biến môi trường .env thực tế)
 # Để test, bạn cần lấy "App Password" của Gmail: https://myaccount.google.com/apppasswords
-SENDER_EMAIL = "your_email@gmail.com"  # <--- THAY EMAIL CỦA BẠN
-SENDER_PASSWORD = "your_app_password"  # <--- THAY MẬT KHẨU ỨNG DỤNG (Không phải mật khẩu đăng nhập)
+SENDER_EMAIL = "opsminh2910@gmail.com"  # <--- THAY EMAIL CỦA BẠN
+SENDER_PASSWORD = "zuik ravo mrql xvdb"  # <--- THAY MẬT KHẨU ỨNG DỤNG (Không phải mật khẩu đăng nhập)
 
 def send_sos_email(user_email: str, location: dict, medical_info: str, nearest_station: dict):
     """

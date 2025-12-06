@@ -1,83 +1,83 @@
-'use client'
+"use client";
 
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
-export type Language = 'en' | 'vi' | 'jp'
-export type Severity = 'high' | 'medium' | 'low' | 'safe'
+export type Language = "en" | "vi" | "jp";
+export type Severity = "high" | "medium" | "low" | "safe";
 
 const generateUniqueId = () => {
-  return `alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-}
+  return `alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
 
 export interface Alert {
-  id: string
-  title: string
-  description: string
-  severity: Severity
-  timestamp: Date
-  location: string
-  lat: number
-  lng: number
-  read: boolean
-  category: 'weather' | 'disaster' | 'advisory'
+  id: string;
+  title: string;
+  description: string;
+  severity: Severity;
+  timestamp: Date;
+  location: string;
+  lat: number;
+  lng: number;
+  read: boolean;
+  category: "weather" | "disaster" | "advisory";
 }
 
 export interface SOSEvent {
-  id: string
-  timestamp: Date
-  location: string
-  status: 'sent' | 'pending' | 'failed'
+  id: string;
+  timestamp: Date;
+  location: string;
+  status: "sent" | "pending" | "failed";
 }
 
 export interface EmergencyContact {
-  id: string
-  name: string
-  phone: string
-  relation: string
+  id: string;
+  name: string;
+  phone: string;
+  relation: string;
 }
 
 export interface SavedLocation {
-  id: string
-  name: string
-  lat: number
-  lng: number
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
 }
 
 interface AppState {
-  language: Language
-  isDarkMode: boolean
-  offlineMode: boolean
-  notifications: boolean
-  hasSeenOnboarding: boolean
-  alerts: Alert[]
-  sosHistory: SOSEvent[]
-  emergencyContacts: EmergencyContact[]
-  savedLocations: SavedLocation[]
-  userLocation: { lat: number; lng: number } | null
-  safetyScore: number
+  language: Language;
+  isDarkMode: boolean;
+  offlineMode: boolean;
+  notifications: boolean;
+  hasSeenOnboarding: boolean;
+  alerts: Alert[];
+  sosHistory: SOSEvent[];
+  emergencyContacts: EmergencyContact[];
+  savedLocations: SavedLocation[];
+  userLocation: { lat: number; lng: number } | null;
+  safetyScore: number;
 
-  setLanguage: (lang: Language) => void
-  setDarkMode: (isDarkMode: boolean) => void
-  toggleDarkMode: () => void
-  toggleOfflineMode: () => void
-  toggleNotifications: () => void
-  completeOnboarding: () => void
-  addAlert: (alert: Alert) => void
-  markAlertAsRead: (id: string) => void
-  addSOSEvent: (event: SOSEvent) => void
-  addEmergencyContact: (contact: EmergencyContact) => void
-  removeEmergencyContact: (id: string) => void
-  addSavedLocation: (location: SavedLocation) => void
-  removeSavedLocation: (id: string) => void
-  setUserLocation: (location: { lat: number; lng: number }) => void
-  setSafetyScore: (score: number) => void
+  setLanguage: (lang: Language) => void;
+  setDarkMode: (isDarkMode: boolean) => void;
+  toggleDarkMode: () => void;
+  toggleOfflineMode: () => void;
+  toggleNotifications: () => void;
+  completeOnboarding: () => void;
+  addAlert: (alert: Alert) => void;
+  markAlertAsRead: (id: string) => void;
+  addSOSEvent: (event: SOSEvent) => void;
+  addEmergencyContact: (contact: EmergencyContact) => void;
+  removeEmergencyContact: (id: string) => void;
+  addSavedLocation: (location: SavedLocation) => void;
+  removeSavedLocation: (id: string) => void;
+  setUserLocation: (location: { lat: number; lng: number }) => void;
+  setSafetyScore: (score: number) => void;
 }
 
 export const useStore = create<AppState>()(
   persist(
     (set) => ({
-      language: 'en',
+      language: "en",
       isDarkMode: false,
       offlineMode: false,
       notifications: true,
@@ -85,40 +85,40 @@ export const useStore = create<AppState>()(
       alerts: [
         {
           id: generateUniqueId(),
-          title: 'Severe Storm Warning',
-          description: 'A severe thunderstorm is approaching your area',
-          severity: 'high',
+          title: "Severe Storm Warning",
+          description: "A severe thunderstorm is approaching your area",
+          severity: "high",
           timestamp: new Date(),
-          location: 'Hanoi, Vietnam',
+          location: "Hanoi, Vietnam",
           lat: 21.0285,
           lng: 105.8542,
           read: false,
-          category: 'weather'
+          category: "weather",
         },
         {
           id: generateUniqueId(),
-          title: 'Flash Flood Alert',
-          description: 'Flash flooding possible in low-lying areas',
-          severity: 'medium',
+          title: "Flash Flood Alert",
+          description: "Flash flooding possible in low-lying areas",
+          severity: "medium",
           timestamp: new Date(Date.now() - 3600000),
-          location: 'Da Nang, Vietnam',
+          location: "Da Nang, Vietnam",
           lat: 16.0544,
           lng: 108.2022,
           read: false,
-          category: 'disaster'
+          category: "disaster",
         },
         {
           id: generateUniqueId(),
-          title: 'Wind Advisory',
-          description: 'Strong winds expected this afternoon',
-          severity: 'low',
+          title: "Wind Advisory",
+          description: "Strong winds expected this afternoon",
+          severity: "low",
           timestamp: new Date(Date.now() - 7200000),
-          location: 'Ho Chi Minh City, Vietnam',
+          location: "Ho Chi Minh City, Vietnam",
           lat: 10.7769,
           lng: 106.7009,
           read: true,
-          category: 'advisory'
-        }
+          category: "advisory",
+        },
       ],
       sosHistory: [],
       emergencyContacts: [],
@@ -129,31 +129,42 @@ export const useStore = create<AppState>()(
       setLanguage: (lang) => set({ language: lang }),
       setDarkMode: (isDarkMode) => set({ isDarkMode }),
       toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
-      toggleOfflineMode: () => set((state) => ({ offlineMode: !state.offlineMode })),
-      toggleNotifications: () => set((state) => ({ notifications: !state.notifications })),
+      toggleOfflineMode: () =>
+        set((state) => ({ offlineMode: !state.offlineMode })),
+      toggleNotifications: () =>
+        set((state) => ({ notifications: !state.notifications })),
       completeOnboarding: () => set({ hasSeenOnboarding: true }),
-      addAlert: (alert) => set((state) => ({ alerts: [alert, ...state.alerts] })),
-      markAlertAsRead: (id) => set((state) => ({
-        alerts: state.alerts.map(a => a.id === id ? { ...a, read: true } : a)
-      })),
-      addSOSEvent: (event) => set((state) => ({ sosHistory: [event, ...state.sosHistory] })),
-      addEmergencyContact: (contact) => set((state) => ({
-        emergencyContacts: [...state.emergencyContacts, contact]
-      })),
-      removeEmergencyContact: (id) => set((state) => ({
-        emergencyContacts: state.emergencyContacts.filter(c => c.id !== id)
-      })),
-      addSavedLocation: (location) => set((state) => ({
-        savedLocations: [...state.savedLocations, location]
-      })),
-      removeSavedLocation: (id) => set((state) => ({
-        savedLocations: state.savedLocations.filter(l => l.id !== id)
-      })),
+      addAlert: (alert) =>
+        set((state) => ({ alerts: [alert, ...state.alerts] })),
+      markAlertAsRead: (id) =>
+        set((state) => ({
+          alerts: state.alerts.map((a) =>
+            a.id === id ? { ...a, read: true } : a
+          ),
+        })),
+      addSOSEvent: (event) =>
+        set((state) => ({ sosHistory: [event, ...state.sosHistory] })),
+      addEmergencyContact: (contact) =>
+        set((state) => ({
+          emergencyContacts: [...state.emergencyContacts, contact],
+        })),
+      removeEmergencyContact: (id) =>
+        set((state) => ({
+          emergencyContacts: state.emergencyContacts.filter((c) => c.id !== id),
+        })),
+      addSavedLocation: (location) =>
+        set((state) => ({
+          savedLocations: [...state.savedLocations, location],
+        })),
+      removeSavedLocation: (id) =>
+        set((state) => ({
+          savedLocations: state.savedLocations.filter((l) => l.id !== id),
+        })),
       setUserLocation: (location) => set({ userLocation: location }),
       setSafetyScore: (score) => set({ safetyScore: score }),
     }),
     {
-      name: 'travel-safety-storage',
+      name: "travel-safety-storage",
     }
   )
-)
+);

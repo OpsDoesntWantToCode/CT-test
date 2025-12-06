@@ -340,11 +340,12 @@ export default function SOSPage() {
 
           {/* SECTION 2: TÌM KIẾM THỦ CÔNG (Secondary Option) */}
           {/* Chỉ hiện khi chưa kích hoạt SOS hoặc người dùng muốn tìm thêm */}
+          {/* Card Tìm Kiếm */}
           <Card className="bg-black/40 backdrop-blur-md border-white/10 p-4 space-y-4">
             <div className="flex flex-col gap-3">
               <h2 className="text-lg font-semibold flex items-center gap-2 text-blue-400">
-                <MapPin className="w-5 h-5" />
-                Tìm trạm cứu hộ gần nhất
+                <Navigation className="w-5 h-5" />
+                Tìm nơi cứu trợ
               </h2>
               
               <div className="flex gap-2">
@@ -356,7 +357,6 @@ export default function SOSPage() {
                    >
                      <option value="hospital">Bệnh viện</option>
                      <option value="police">Công an</option>
-                     <option value="fire">Cứu hỏa</option>
                      <option value="townhall">UBND</option>
                    </select>
                 </div>
@@ -366,34 +366,53 @@ export default function SOSPage() {
                   disabled={isLoadingRescue}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  {isLoadingRescue ? 'Đang quét...' : 'Tìm kiếm'}
+                  {isLoadingRescue ? 'Đang tìm...' : 'Tìm kiếm'}
                 </Button>
               </div>
             </div>
             
-            {/* Map Area */}
-            <div className="h-48 w-full bg-slate-900/50 rounded-lg overflow-hidden relative border border-white/10">
-              {(!userLocation && !sosActive) ? (
+            {/* Bản đồ */}
+            <div className="h-72 w-full bg-slate-900/50 rounded-lg overflow-hidden relative border border-white/10">
+              {!userLocation ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-2">
                   <MapPin className="w-8 h-8 opacity-50" />
-                  <p className="text-xs">Bản đồ sẽ hiện khi tìm kiếm hoặc SOS</p>
+                  <p className="text-sm">Chọn loại và nhấn tìm kiếm</p>
                 </div>
               ) : (
                 <RescueMap 
-                  userLocation={userLocation || {lat: 10.7, lon: 106.6}} // Fallback
+                  userLocation={userLocation} 
                   destination={rescueStation} 
                 />
               )}
+              
+              {isLoadingRescue && (
+                <div className="absolute inset-0 bg-black/60 z-[1000] flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+              )}
             </div>
 
-            {/* Action Buttons */}
+            {/* CÁC NÚT CHỨC NĂNG (GỌI & CHỈ ĐƯỜNG) */}
             {rescueStation && (
               <div className="grid grid-cols-2 gap-3">
-                <Button variant="default" className="bg-green-600 hover:bg-green-700" onClick={handleCallStation}>
-                  <PhoneCall className="w-4 h-4 mr-2" /> Gọi trạm
+                {/* Nút Gọi Điện */}
+                <Button 
+                  variant="default"
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  onClick={handleCallStation}
+                >
+                  <PhoneCall className="w-4 h-4 mr-2" />
+                  Gọi: {rescueStation.phone}
                 </Button>
-                <Button variant="outline" className="border-blue-500/30 text-blue-300 hover:bg-blue-500/20" onClick={openGoogleMaps}>
-                  <ExternalLink className="w-4 h-4 mr-2" /> Chỉ đường
+
+                {/* Nút Google Maps */}
+                <Button 
+                  variant="outline" 
+                  className="border-blue-500/30 text-blue-300 hover:bg-blue-500/20"
+                  onClick={openGoogleMaps}
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Chỉ đường
                 </Button>
               </div>
             )}

@@ -1,0 +1,101 @@
+name,lat,lon
+Quan 1 - TP.HCM,10.7756,106.7004
+Quan 3 - TP.HCM,10.7778,106.6925
+Quan 7 - TP.HCM,10.7327,106.7208
+Binh Thanh - TP.HCM,10.8033,106.7077
+Thu Duc - TP.HCM,10.8494,106.7537
+Tan Binh - TP.HCM,10.8016,106.6579
+Go Vap - TP.HCM,10.8386,106.6653
+Quan 12 - TP.HCM,10.8671,106.6413
+Binh Tan - TP.HCM,10.7634,106.5985
+Cu Chi - TP.HCM,11.0067,106.5132
+Can Gio - TP.HCM,10.5085,106.8776
+Nha Be - TP.HCM,10.7000,106.7500
+Hoc Mon - TP.HCM,10.8750,106.5560
+Hoan Kiem - Ha Noi,21.0285,105.8542
+Ba Dinh - Ha Noi,21.0341,105.8277
+Tay Ho - Ha Noi,21.0667,105.8213
+Dong Da - Ha Noi,21.0125,105.8273
+Cau Giay - Ha Noi,21.0333,105.7833
+Ha Dong - Ha Noi,20.9636,105.7632
+Soc Son - Ha Noi,21.2750,105.8396
+Ba Vi - Ha Noi,21.0969,105.4199
+Thanh Xuan - Ha Noi,21.0003,105.8080
+Nam Tu Liem - Ha Noi,21.0250,105.7720
+Thach That - Ha Noi,21.0333,105.5833
+Hai Chau - Da Nang,16.0667,108.2167
+Son Tra - Da Nang,16.1000,108.2500
+Ngu Hanh Son - Da Nang,16.0150,108.2636
+Ba Na Hills - Da Nang,15.9964,107.9936
+Lien Chieu - Da Nang,16.0833,108.1500
+Hoi An - Quang Nam,15.8801,108.3380
+Cu Lao Cham - Quang Nam,15.9583,108.5067
+TP Tam Ky - Quang Nam,15.5667,108.4833
+TP Hue - Thua Thien Hue,16.4637,107.5909
+Lang Co - Thua Thien Hue,16.2239,108.0673
+Nha Trang - Khanh Hoa,12.2388,109.1967
+Cam Ranh - Khanh Hoa,11.9214,109.1591
+Vinpearl - Khanh Hoa,12.2173,109.2393
+Da Lat - Lam Dong,11.9404,108.4583
+Bao Loc - Lam Dong,11.5464,107.8119
+Vung Tau - Ba Ria Vung Tau,10.3460,107.0843
+Con Dao - Ba Ria Vung Tau,8.6835,106.6053
+Phan Thiet - Binh Thuan,10.9333,108.1000
+Mui Ne - Binh Thuan,10.9413,108.2871
+Phu Quy - Binh Thuan,10.5167,108.9500
+Quy Nhon - Binh Dinh,13.7830,109.2197
+Ky Co - Binh Dinh,13.7500,109.3000
+An Nhon - Binh Dinh,13.9167,109.1833
+Tuy Hoa - Phu Yen,13.0875,109.3117
+Mui Dien - Phu Yen,12.8953,109.4628
+Buon Ma Thuot - Dak Lak,12.6667,108.0500
+Pleiku - Gia Lai,13.9833,108.0000
+Mang Den - Kon Tum,14.5950,108.2903
+Gia Nghia - Dak Nong,12.0000,107.9667
+Sapa - Lao Cai,22.3364,103.8438
+Fansipan - Lao Cai,22.3034,103.7752
+Bac Ha - Lao Cai,22.5667,104.2833
+Ha Long - Quang Ninh,20.9505,107.0734
+Van Don - Quang Ninh,21.0500,107.4667
+Co To - Quang Ninh,20.9833,107.7667
+Cat Ba - Hai Phong,20.7303,107.0453
+Do Son - Hai Phong,20.7000,106.7833
+Trang An - Ninh Binh,20.2500,105.9000
+Tam Dao - Vinh Phuc,21.4578,105.6453
+Moc Chau - Son La,20.8436,104.6542
+Mai Chau - Hoa Binh,20.6667,105.0833
+Dong Van - Ha Giang,23.2833,105.3667
+Meo Vac - Ha Giang,23.1667,105.4167
+Ban Gioc - Cao Bang,22.8533,106.7214
+Mau Son - Lang Son,21.8417,106.9367
+TP Vinh - Nghe An,18.6796,105.6813
+Cua Lo - Nghe An,18.8000,105.7167
+Thien Cam - Ha Tinh,18.2833,106.0500
+Dong Hoi - Quang Binh,17.4833,106.6000
+Phong Nha - Quang Binh,17.5833,106.2833
+Dong Ha - Quang Tri,16.8167,107.1000
+Ly Son - Quang Ngai,15.3800,109.1200
+TP Quang Ngai - Quang Ngai,15.1167,108.7833
+Phu Quoc - Kien Giang,10.2899,103.9840
+Rach Gia - Kien Giang,10.0119,105.0805
+Ha Tien - Kien Giang,10.3833,104.2833
+Ninh Kieu - Can Tho,10.0452,105.7469
+Cai Rang - Can Tho,10.0000,105.7500
+Chau Doc - An Giang,10.7000,105.1167
+TP Ben Tre - Ben Tre,10.2333,106.3833
+Ba Tri - Ben Tre,10.0167,106.5000
+Dat Mui - Ca Mau,8.6000,104.7167
+TP Bac Lieu - Bac Lieu,9.2941,105.7278
+TP Soc Trang - Soc Trang,9.6033,105.9722
+Long Phu - Soc Trang,9.5167,106.1333
+Nui Ba Den - Tay Ninh,11.3786,106.1683
+Go Dau - Tay Ninh,11.0964,106.2797
+Bien Hoa - Dong Nai,10.9575,106.8425
+Thu Dau Mot - Binh Duong,10.9806,106.6575
+Long Thanh - Dong Nai,10.7833,106.9500
+Di An - Binh Duong,10.8879,106.7725
+TP Vinh Long - Vinh Long,10.2458,105.9739
+TP Tay Ninh - Tay Ninh,11.3117,106.1075
+TP My Tho - Tien Giang,10.3667,106.3500
+TP Tra Vinh - Tra Vinh,10.5500,106.3333
+Vi Thanh - Hau Giang,9.7712,105.4746

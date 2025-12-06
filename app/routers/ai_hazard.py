@@ -2,63 +2,62 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from app.ml.predictor_hazard import HazardPredictor
+from app.core.database import fetch_latest_weather_data # Hàm lấy dữ liệu thật
 
 router = APIRouter()
-model = HazardPredictor()
 
-# --- Pydantic Models ---
-class HazardInput(BaseModel):
-    """Input schema cho hazard prediction - lấy từ normalized_data.csv"""
-    # Vị trí
-    location: Optional[str] = "Unknown"
-    lat: Optional[float] = 0.0
-    lon: Optional[float] = 0.0
-    
-    # Thời tiết cơ bản
-    temperature: Optional[float] = 30.0
-    humidity: Optional[float] = 70.0
-    pressure: Optional[float] = 1013.0
-    wind_speed: Optional[float] = 5.0
-    
-    # Thời tiết nâng cao (Mưa, Gió giật)
-    precip6: Optional[float] = 0.0
-    precip24: Optional[float] = 0.0
-    gust6: Optional[float] = 0.0
-    
-    # Thảm họa (Thủy văn, Động đất)
-    river_discharge: Optional[float] = -1.0
-    eq_mag: Optional[float] = -1.0
-    eq_dist: Optional[float] = -1.0
-    
-    # Nhãn dự đoán (từ CSV)
-    rain_label: Optional[str] = "low"
-    wind_label: Optional[str] = "low"
-    storm_label: Optional[str] = "low"
-    flood_label: Optional[str] = "no"
-    earthquake_label: Optional[str] = "no"
+# Khởi tạo model một lần duy nhất
+try:
+    model = HazardPredictor()
+except Exception as e:
+    print(f"⚠️ Model init failed: {e}")
+    model = None
 
+# --- Input: Chỉ cần tọa độ ---
+class LocationReq(BaseModel):
+    lat: float
+    lon: float
+
+# --- Output: Kết quả dự báo ---
 class HazardResponse(BaseModel):
-    """Response schema cho hazard prediction"""
-    overall_hazard: str
-    confidence: str = "High"
+    overall_hazard: str # Kết quả dự báo (Storm, Rain...)
+    confidence: str     # Độ tin cậy (High/Medium...)
+    real_data_used: Optional[dict] = None # Trả về dữ liệu thật đã dùng để debug
 
-# --- Endpoints ---
 @router.post("/predict", response_model=HazardResponse)
-async def predict_hazard(input_data: HazardInput):
+async def predict_hazard(req: LocationReq):
     """
-    Dự đoán loại thảm họa từ dữ liệu thời tiết và địa chất.
+    1. Nhận toạ độ từ Frontend.
+    2. Lấy dữ liệu thời tiết MỚI NHẤT từ Database (bảng events).
+    3. Đưa vào Model XGBoost để dự đoán.
+    """
+    if not model:
+        raise HTTPException(status_code=500, detail="AI Model chưa được tải.")
+
+    # BƯỚC 1: Lấy dữ liệu thật từ DB
+    db_data = fetch_latest_weather_data(req.lat, req.lon)
     
-    Args:
-        input_data: HazardInput object chứa các thông số thời tiết
-        
-    Returns:
-        HazardResponse với overall_hazard (No, Rain, Storm, Wind, Flood)
-    """
+    if not db_data:
+        # Nếu chưa có dữ liệu trong DB (vùng này chưa được Data Collector quét)
+        return HazardResponse(
+            overall_hazard="Unknown", 
+            confidence="Low (No Data)",
+            real_data_used={}
+        )
+
     try:
-        # Chuyển Pydantic model thành dict
-        data_dict = input_data.dict()
-        hazard = model.predict_overall_hazard(data_dict)
+        # BƯỚC 2: Gọi Model dự đoán
+        # db_data chính là raw_data từ DB, chứa: temperature, humidity, wind_speed...
+        # Class HazardPredictor sẽ tự lọc các trường cần thiết.
+        prediction = model.predict_overall_hazard(db_data)
         
-        return HazardResponse(overall_hazard=hazard, confidence="High")
+        # BƯỚC 3: Trả về kết quả
+        return HazardResponse(
+            overall_hazard=prediction, 
+            confidence="High", # Model XGBoost thường có độ tin cậy cao nếu có data
+            real_data_used=db_data # Show dữ liệu thật cho Frontend biết
+        )
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
+        print(f"Prediction Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

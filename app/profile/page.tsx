@@ -11,10 +11,17 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { AppHeader } from '../../components/app-header'
 import Image from 'next/image'
+import { logout as logoutAPI } from '../../lib/api-auth'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog'
+import { Input } from '../../components/ui/input'
+import { Label } from '../../components/ui/label'
 
 export default function ProfilePage() {
   const router = useRouter()
   const language = useStore((state) => state.language)
+  const user = useStore((state) => state.user)
+  const authToken = useStore((state) => state.authToken)
+  const logout = useStore((state) => state.logout)
   const emergencyContacts = useStore((state) => state.emergencyContacts)
   const savedLocations = useStore((state) => state.savedLocations)
   const addEmergencyContact = useStore((state) => state.addEmergencyContact)
@@ -24,15 +31,21 @@ export default function ProfilePage() {
   const t = useTranslation(language)
   
   const [isEditingProfile, setIsEditingProfile] = useState(false)
+  const [isAddContactOpen, setIsAddContactOpen] = useState(false)
+  const [newContact, setNewContact] = useState({ name: '', phone: '', relation: '' })
   
   const handleAddContact = () => {
-    const newContact = {
-      id: Date.now().toString(),
-      name: 'Emergency Contact',
-      phone: '+84 123 456 789',
-      relation: 'Family'
+    if (newContact.name && newContact.phone) {
+      const contact = {
+        id: Date.now().toString(),
+        name: newContact.name,
+        phone: newContact.phone,
+        relation: newContact.relation || 'Other'
+      }
+      addEmergencyContact(contact)
+      setNewContact({ name: '', phone: '', relation: '' })
+      setIsAddContactOpen(false)
     }
-    addEmergencyContact(newContact)
   }
   
   const handleAddLocation = () => {
@@ -44,6 +57,22 @@ export default function ProfilePage() {
     }
     addSavedLocation(newLocation)
   }
+  
+  const handleLogout = async () => {
+    try {
+      // Gọi API logout nếu có token
+      if (authToken) {
+        await logoutAPI(authToken)
+      }
+    } catch (error) {
+      console.error('Logout API error:', error)
+    } finally {
+      // Clear store và chuyển về onboarding
+      logout()
+      router.push('/onboarding')
+    }
+  }
+  
   const isDarkMode = useStore((state) => state.isDarkMode)
   return (
     <div className="min-h-screen relative text-white overflow-hidden">
@@ -71,21 +100,20 @@ export default function ProfilePage() {
             <div className="flex items-start gap-4">
               <Avatar className="h-20 w-20">
                 <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
-                  JD
+                  {user && user.first_name && user.last_name 
+                    ? `${user.first_name[0].toUpperCase()}${user.last_name[0].toUpperCase()}` 
+                    : 'U'}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1">
-                <h2 className="text-2xl font-bold">John Doe</h2>
-                <p className="text-sm text-white/70">john.doe@example.com</p>
-                <p className="text-sm text-white/70 mt-1">+84 123 456 789</p>
+                <h2 className="text-2xl font-bold">
+                  {user && user.first_name && user.last_name 
+                    ? `${user.first_name} ${user.last_name}` 
+                    : 'User'}
+                </h2>
+                <p className="text-sm text-white/70">{user?.email || 'No email'}</p>
+                <p className="text-sm text-white/70 mt-1">{user?.phone_number || 'No phone'}</p>
               </div>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setIsEditingProfile(!isEditingProfile)}
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
             </div>
           </Card>
           
@@ -96,7 +124,7 @@ export default function ProfilePage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleAddContact}
+                onClick={() => setIsAddContactOpen(true)}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 {t.addContact}
@@ -110,13 +138,13 @@ export default function ProfilePage() {
             ) : (
               <div className="space-y-2">
                 {emergencyContacts.map((contact) => (
-                  <Card key={contact.id} className="bg-black/40 backdrop-blur-md border-white/10 p-4">
+                  <Card key={contact.id} className="bg-black/40 backdrop-blur-md border-white/10 p-4 text-white">
                     <div className="flex items-center gap-3">
                       <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
                         <Phone className="h-5 w-5 text-primary" />
                       </div>
                       <div className="flex-1">
-                        <div className="font-medium">{contact.name}</div>
+                        <div className="font-medium text-white">{contact.name}</div>
                         <div className="text-sm text-white/70">{contact.phone}</div>
                         <div className="text-xs text-white/60">{contact.relation}</div>
                       </div>
@@ -155,13 +183,13 @@ export default function ProfilePage() {
             ) : (
               <div className="space-y-2">
                 {savedLocations.map((location) => (
-                  <Card key={location.id} className="bg-black/40 backdrop-blur-md border-white/10 p-4">
+                  <Card key={location.id} className="bg-black/40 backdrop-blur-md border-white/10 p-4 text-white">
                     <div className="flex items-center gap-3">
                       <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
                         <MapPin className="h-5 w-5 text-primary" />
                       </div>
                       <div className="flex-1">
-                        <div className="font-medium">{location.name}</div>
+                        <div className="font-medium text-white">{location.name}</div>
                         <div className="text-sm text-white/70">
                           {location.lat.toFixed(4)}, {location.lng.toFixed(4)}
                         </div>
@@ -181,7 +209,7 @@ export default function ProfilePage() {
           </div>
           
           {/* Logout */}
-          <Card className="bg-red-500/20 backdrop-blur-md border-red-500/30 text-white p-4 cursor-pointer hover:bg-red-500/30 transition-colors" onClick={() => router.push('/onboarding')}>
+          <Card className="bg-red-500/20 backdrop-blur-md border-red-500/30 text-white p-4 cursor-pointer hover:bg-red-500/30 transition-colors" onClick={handleLogout}>
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-500/10">
                 <LogOut className="h-5 w-5 text-red-500" />
@@ -191,6 +219,54 @@ export default function ProfilePage() {
           </Card>
         </div>
       </div>
+      
+      {/* Add Contact Dialog */}
+      <Dialog open={isAddContactOpen} onOpenChange={setIsAddContactOpen}>
+        <DialogContent className="bg-black/90 border-white/20 text-white">
+          <DialogHeader>
+            <DialogTitle>Add Emergency Contact</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                placeholder="Enter contact name"
+                value={newContact.name}
+                onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
+                className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input
+                id="phone"
+                placeholder="+84 123 456 789"
+                value={newContact.phone}
+                onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
+                className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="relation">Relation</Label>
+              <Input
+                id="relation"
+                placeholder="Family, Friend, etc."
+                value={newContact.relation}
+                onChange={(e) => setNewContact({ ...newContact, relation: e.target.value })}
+                className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+              />
+            </div>
+            <Button 
+              onClick={handleAddContact} 
+              className="w-full"
+              disabled={!newContact.name || !newContact.phone}
+            >
+              Add Contact
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       
       <BottomNav />
     </div>

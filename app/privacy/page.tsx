@@ -13,6 +13,16 @@ export default function PrivacyPage() {
   const language = useStore((state) => state.language)
   const t = useTranslation(language)
   const isDarkMode = useStore((state) => state.isDarkMode)
+  
+  const handleBack = () => {
+    // Kiểm tra xem có đang ở trang onboarding không (dựa vào document.referrer)
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back()
+    } else {
+      router.push('/onboarding')
+    }
+  }
+  
   return (
     <div className="min-h-screen relative text-white overflow-hidden">
       <div className="absolute inset-0 z-0">
@@ -25,7 +35,7 @@ export default function PrivacyPage() {
         <div className="max-w-4xl mx-auto w-full space-y-6">
           <div className="bg-black/40 backdrop-blur-md rounded-2xl p-6 border border-white/10 flex items-center gap-4">
             <button
-              onClick={() => router.back()}
+              onClick={handleBack}
               className="p-2 hover:bg-white/10 rounded-lg transition-colors"
               aria-label="Go back"
             >

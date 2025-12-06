@@ -3,7 +3,7 @@
 import { Card } from '../../components/ui/card'
 import { BottomNav } from '../../components/bottom-nav'
 import { AppHeader } from '../../components/app-header'
-import { ChevronRight, Globe, Moon, Wifi, Bell, Shield, HelpCircle, User, ArrowLeft } from 'lucide-react'
+import { ChevronRight, Globe, Moon, Wifi, Bell, Shield, HelpCircle, User, ArrowLeft, History } from 'lucide-react'
 import { useStore } from '../../lib/store'
 import { useTranslation } from '../../lib/translations'
 import { Switch } from '../../components/ui/switch'
@@ -34,7 +34,6 @@ export default function SettingsPage() {
   const languageOptions = [
     { code: 'en' as const, label: 'English', flag: '🇬🇧' },
     { code: 'vi' as const, label: 'Tiếng Việt', flag: '🇻🇳' },
-    { code: 'jp' as const, label: '日本語', flag: '🇯🇵' },
   ]
 
   return (
@@ -82,7 +81,7 @@ export default function SettingsPage() {
                         : 'bg-white/90 hover:bg-white text-gray-900'
                       }`}
                   >
-                    <span className="text-2xl">{option.flag}</span>
+                    <span className="text-lg font-bold">{option.code.toUpperCase()}</span>
                     <span className="font-medium">{option.label}</span>
                     {language === option.code && (
                       <span className="ml-auto">✓</span>
@@ -159,6 +158,23 @@ export default function SettingsPage() {
                 <div className="flex-1">
                   <div className="font-medium">Profile</div>
                   <div className="text-xs text-white/60">Manage your account</div>
+                </div>
+                <ChevronRight className="h-5 w-5 text-white/60" />
+              </div>
+            </Card>
+
+            {/* History */}
+            <Card
+              className="bg-black/40 backdrop-blur-md border-white/10 text-white p-4 cursor-pointer hover:bg-black/50 transition-colors"
+              onClick={() => router.push('/history')}
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
+                  <History className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-medium">History</div>
+                  <div className="text-xs text-white/60">View alerts and SOS events</div>
                 </div>
                 <ChevronRight className="h-5 w-5 text-white/60" />
               </div>

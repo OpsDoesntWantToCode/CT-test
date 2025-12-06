@@ -2,286 +2,255 @@
 
 import 'leaflet/dist/leaflet.css'
 import { useState, useEffect } from 'react'
-import { Card } from '../../components/ui/card'
-import { Input } from '../../components/ui/input'
-import { Button } from '../../components/ui/button'
-import { Badge } from '../../components/ui/badge'
-import { BottomNav } from '../../components/bottom-nav'
-import { AppHeader } from '../../components/app-header'
-import { Search, ShieldAlert, ArrowLeft, MapPin, Maximize2 } from 'lucide-react'
-import { useStore } from '../../lib/store'
-import { useTranslation } from '../../lib/translations'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { AppHeader } from '@/components/app-header'
+import { BottomNav } from '@/components/bottom-nav'
+import { Search, ArrowLeft, Layers, ShieldAlert, Maximize2 } from 'lucide-react'
+import { useStore } from '@/lib/store'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
-import UserMarker from '../../components/UserMarker.client'
-import FlyToLocation from '../../components/FlyToLocation'
+import { useMap } from 'react-leaflet'
 
-// --- 1. IMPORT CÁC COMPONENT CỦA LEAFLET (DỰA TRÊN CODE BẠN CUNG CẤP) ---
+// Dynamic imports
 const MapContainer = dynamic(() => import("react-leaflet").then(m => m.MapContainer), { ssr: false }) as any
 const TileLayer    = dynamic(() => import("react-leaflet").then(m => m.TileLayer), { ssr: false }) as any
 const Polygon      = dynamic(() => import("react-leaflet").then(m => m.Polygon), { ssr: false }) as any
 const Circle       = dynamic(() => import("react-leaflet").then(m => m.Circle), { ssr: false }) as any
-// ------------------------------------------------------------------------
+const CircleMarker = dynamic(() => import("react-leaflet").then(m => m.CircleMarker), { ssr: false }) as any 
+const Popup        = dynamic(() => import("react-leaflet").then(m => m.Popup), { ssr: false }) as any
+
+const FlyToZone = ({ center }: { center: [number, number] | null }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (center && center[0] !== 0) {
+      map.flyTo(center, 10, { duration: 1.5 });
+    }
+  }, [center, map]);
+  return null;
+};
 
 export default function MapPage() {
   const router = useRouter()
-  const language = useStore((state) => state.language)
   const isDarkMode = useStore((state) => state.isDarkMode)
+  
   const [searchQuery, setSearchQuery] = useState('')
-
-  // State chứa dữ liệu bản đồ
   const [zones, setZones] = useState<any[]>([]) 
   const [loading, setLoading] = useState(true)
   const [selectedZone, setSelectedZone] = useState<any | null>(null)
-  const [L, setL] = useState<any>(null)
+  
+  useEffect(() => {
+    import('leaflet').then((mod) => {
+      const leaf = mod.default;
+      delete (leaf.Icon.Default.prototype as any)._getIconUrl;
+      leaf.Icon.Default.mergeOptions({
+        iconRetinaUrl: '/leaflet/marker-icon-2x.png',
+        iconUrl: '/leaflet/marker-icon.png',
+        shadowUrl: '/leaflet/marker-shadow.png',
+      });
+    });
+  }, []);
 
-  // --- 2. LOGIC MÀU SẮC (LẤY TỪ CODE CŨ) ---
-  const severityColors: any = {
-    high: 'bg-red-500',
-    medium: 'bg-orange-500',
-    low: 'bg-yellow-500',
-    safe: 'bg-green-500',
-    info: 'bg-green-500',    // Thêm info -> Xanh lá
-    default: 'bg-green-500', // Mặc định -> Xanh lá
-  }
-
-  const getZoneColor = (severity: string) => {
-    const level = severity?.toLowerCase() || 'medium';
-    switch (level) {
-      case 'high': return 'red';
-      case 'medium': return 'orange';
-      case 'low': return 'yellow';
-      case 'safe': return 'green';
-      case 'info': return 'green'; // Thêm case Info -> Xanh lá
-      default: return 'green';     // Đổi default từ blue -> green
-    }
-  };
-
-  const getSeverityLabel = (severity: string) => {
-    const level = severity?.toLowerCase();
-    switch (level) {
-      case 'high': return 'High Risk (0-24)'
-      case 'medium': return 'Medium Risk (25-49)'
-      case 'low': return 'Low Risk (50-79)'
-      case 'safe': return 'Safe (80-100)'
-      default: return severity
-    }
-  }
-  // ------------------------------------------
-
-  // --- 3. FETCH DỮ LIỆU TỪ BACKEND PYTHON & MAP SANG FORMAT CŨ ---
   useEffect(() => {
     const fetchRiskZones = async () => {
       try {
-        // Gọi API Backend Python
         const response = await fetch('http://localhost:8000/api/v1/map/zones'); 
-        const backendData = await response.json();
+        const data = await response.json();
+        
+        if (data && data.features) {
+          const formattedZones = data.features.map((feature: any) => {
+            const props = feature.properties;
+            const geometry = feature.geometry;
+            
+            let polygonCoords: any[] = [];
+            let center: [number, number] = [0, 0];
 
-        // Map dữ liệu từ Backend sang format Frontend mong muốn
-        const formattedZones = backendData.map((item: any) => ({
-           id: item.id || Math.random().toString(),
-           name: item.id, // Backend đang dùng id làm tên (location_name)
-           // Xác định loại hình vẽ: Nếu có path -> polygon, không có -> circle
-           type: (item.path && item.path.length > 0) ? 'polygon' : 'circle',
-           path: item.path,
-           center: item.center, // [lat, lon]
-           radius: 3000, // Mặc định 3km nếu là hình tròn (Backend chưa trả radius)
-           severity: item.risk_level?.toLowerCase() || 'medium', // Map 'High' -> 'high'
-           description: item.info?.type || 'Unknown Risk'
-        }));
+            if (geometry.type === 'Polygon') {
+               polygonCoords = geometry.coordinates[0].map((p: any) => [p[1], p[0]]);
+               if (props.center) center = props.center;
+               else center = [polygonCoords[0][0], polygonCoords[0][1]];
+            } else if (geometry.type === 'Point') {
+               center = [geometry.coordinates[1], geometry.coordinates[0]];
+            }
 
-        setZones(formattedZones);
-      } catch (error) {
-        console.error("Failed to fetch map data:", error);
-      } finally {
-        setLoading(false);
-      }
+            return {
+               id: props.id,
+               name: props.name,
+               description: props.description,
+               risk_type: props.risk_type || "Unknown",
+               severity: props.risk_level, 
+               color: props.color,
+               radius: props.radius,
+               time: props.time,
+               center: center,
+               path: polygonCoords
+            };
+          });
+          setZones(formattedZones);
+        }
+      } catch (error) { console.error(error); } finally { setLoading(false); }
     };
     fetchRiskZones();
   }, []);
 
-  // Load Leaflet library
-  useEffect(() => {
-    import('leaflet')
-      .then((mod) => setL(mod.default))
-      .catch((e) => console.error('Leaflet load failed', e));
-  }, []);
-
-  const markerCenter = selectedZone ? (selectedZone.center || (selectedZone.path ? selectedZone.path[0] : null)) : null
+  const getBadgeColor = (severity: string) => {
+    if (!severity) return 'bg-gray-500 text-white';
+    const s = String(severity).toLowerCase();
+    
+    if (s === 'no' || s.includes('safe') || s.includes('info')) 
+        return 'bg-green-600 hover:bg-green-700 text-white border-green-600';
+    if (s.includes('low') || s.includes('caution')) 
+        return 'bg-yellow-500 hover:bg-yellow-600 text-black border-yellow-500';
+    if (s.includes('mid') || s.includes('medium')) 
+        return 'bg-orange-500 hover:bg-orange-600 text-white border-orange-500';
+    if (s.includes('high') || s.includes('danger')) 
+        return 'bg-red-600 hover:bg-red-700 text-white border-red-600';
+        
+    return 'bg-gray-500 text-white';
+  };
 
   return (
     <div className="min-h-screen relative text-white overflow-hidden">
-      {/* Background */}
       <div className="absolute inset-0 z-0">
-        <Image
-          src="/images/background-storm.jpg"
-          alt="Background"
-          fill
-          className="object-cover"
-          priority
-        />
+        <Image src="/images/background-storm.jpg" alt="BG" fill className="object-cover" priority />
         <div className={`absolute inset-0 transition-colors duration-300 ${isDarkMode ? 'bg-black/80' : 'bg-black/30'}`} />
       </div>
 
-      {/* Content */}
       <div className="relative z-10 flex flex-col h-full min-h-screen p-4 md:p-8 gap-6 pb-24">
         <AppHeader />
 
         <div className="flex-1 flex flex-col gap-4 max-w-7xl mx-auto w-full">
-          {/* Header with Back Button */}
           <div className="bg-black/40 backdrop-blur-md rounded-2xl p-6 border border-white/10 flex items-center gap-4">
-            <button
-              onClick={() => router.back()}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-              aria-label="Go back"
-            >
-              <ArrowLeft className="h-6 w-6" />
-            </button>
-            <h1 className="text-3xl font-serif flex-1">Risk Map</h1>
+            <button onClick={() => router.back()} className="p-2 hover:bg-white/10 rounded-lg"><ArrowLeft className="h-6 w-6" /></button>
+            <h1 className="text-3xl font-serif flex-1">Risk Map Visualization</h1>
           </div>
 
-          {/* Search Bar */}
           <div className="bg-black/40 backdrop-blur-md rounded-2xl p-4 border border-white/10">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/60" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search location..."
-                className="pl-9 bg-white/10 border-white/20 text-white placeholder:text-white/50"
-              />
+              <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search location..." className="pl-9 bg-white/10 border-white/20 text-white" />
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1">
-            {/* Map Area */}
             <div className="lg:col-span-2 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 relative min-h-[500px] overflow-hidden">
-              <Button
-                size="sm"
-                className="absolute top-4 right-4 bg-white text-black hover:bg-gray-200 z-[9999] flex items-center gap-2"
-                onClick={() => router.push('/map-fullscreen')}
-              >
-                <Maximize2 className="h-4 w-4" />
-                Expand
+              
+              <Button size="sm" className="absolute top-4 right-4 bg-white text-black hover:bg-gray-200 z-[5000] flex items-center gap-2 shadow-lg" onClick={() => router.push('/map-fullscreen')}>
+                <Maximize2 className="h-4 w-4" /> Expand
               </Button>
 
-              <MapContainer
-                center={[21.0285, 105.8542]}
-                zoom={6}
-                className="w-full h-full"
-              >
-                <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution='&copy; OpenStreetMap contributors'
-                />
+              <MapContainer center={[16.047, 108.206]} zoom={6} className="w-full h-full" scrollWheelZoom={true}>
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OSM' />
+                <FlyToZone center={selectedZone ? selectedZone.center : null} />
 
-                {/* --- 4. VẼ VÙNG AN TOÀN / RỦI RO (ÁP DỤNG CODE TỪ FILE TS BẠN GỬI) --- */}
-                {zones.map((zone, index) => {
-                   const color = getZoneColor(zone.severity);
-                   return (
-                    <div key={index}>
-                      {/* Vẽ Đa giác (Polygon) */}
-                      {zone.type === 'polygon' && zone.path && (
-                        <Polygon 
-                          positions={zone.path}
-                          pathOptions={{ color: color, fillColor: color, fillOpacity: 0.4 }}
-                        />
-                      )}
-
-                      {/* Vẽ Hình tròn (Circle) */}
-                      {zone.type === 'circle' && (
-                        <Circle 
-                          center={zone.center}
-                          pathOptions={{ color: color, fillColor: color, fillOpacity: 0.4 }}
-                          radius={zone.radius || 3000}
-                        />
-                      )}
-                    </div>
-                  )
-                })}
-                {/* --------------------------------------------------------------------- */}
-
-                {/* Fly to selected zone */}
-                {markerCenter && (
-                  <>
-                    <FlyToLocation lat={Number(markerCenter[0])} lon={Number(markerCenter[1])} zoom={13} />
-                    {L && (
-                      <UserMarker
-                        position={{ lat: Number(markerCenter[0]), lon: Number(markerCenter[1]) }}
-                        L={L}
-                      />
-                    )}
-                  </>
+                {selectedZone && selectedZone.center && (
+                  <CircleMarker 
+                    center={selectedZone.center} 
+                    radius={8}
+                    pathOptions={{ 
+                      color: 'white',
+                      fillColor: '#3b82f6',
+                      fillOpacity: 1,
+                      weight: 3
+                    }} 
+                  >
+                     <Popup offset={[0, -5]}>
+                        <span className="font-bold text-black">{selectedZone.name}</span>
+                     </Popup>
+                  </CircleMarker>
                 )}
-              </MapContainer>
 
-              <Button
-                size="icon"
-                className="absolute bottom-10 right-10 h-14 w-14 rounded-full bg-[#E57373] hover:bg-[#EF5350] text-white shadow-lg z-50"
-                onClick={() => router.push('/sos')}
-              >
-                <ShieldAlert className="h-6 w-6" />
-              </Button>
+                {zones.map((zone, index) => {
+                   // [FIX] Tách 'key' ra khỏi commonProps
+                   const uniqueKey = zone.id || index;
+                   const commonProps = {
+                      pathOptions: { 
+                        color: zone.color,       
+                        fillColor: zone.color,   
+                        fillOpacity: 0.2,
+                        weight: 1
+                      },
+                      eventHandlers: { click: () => setSelectedZone(zone) }
+                   };
+
+                   const popupContent = (
+                      <Popup>
+                        <div className="text-black">
+                          <strong className="text-sm">{zone.name}</strong><br/>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${getBadgeColor(zone.severity).split(' ')[0]} text-white`}>
+                            {zone.severity} Risk
+                          </span>
+                          <p className="text-xs mt-1">{zone.risk_type}</p>
+                          <p className="text-[10px] text-gray-500">{zone.time}</p>
+                        </div>
+                      </Popup>
+                   );
+
+                   if (zone.path && zone.path.length > 0) {
+                      // [FIX] Truyền key trực tiếp
+                      return <Polygon key={uniqueKey} positions={zone.path} {...commonProps}>{popupContent}</Polygon>;
+                   } else {
+                      return <Circle key={uniqueKey} center={zone.center} radius={zone.radius || 5000} {...commonProps}>{popupContent}</Circle>;
+                   }
+                })}
+              </MapContainer>
+              
+              <div className="absolute bottom-4 left-4 bg-white/90 p-2 rounded-lg text-black text-xs z-[1000] shadow-lg">
+                <div className="font-bold mb-1 flex items-center gap-1"><Layers className="w-3 h-3"/> Risk Levels</div>
+                <div className="flex items-center gap-1 mb-1"><div className="w-3 h-3 bg-red-600 rounded-full border border-red-600"></div> High</div>
+                <div className="flex items-center gap-1 mb-1"><div className="w-3 h-3 bg-orange-500 rounded-full border border-orange-500"></div> Medium</div>
+                <div className="flex items-center gap-1 mb-1"><div className="w-3 h-3 bg-yellow-500 rounded-full border border-yellow-500"></div> Low</div>
+                <div className="flex items-center gap-1"><div className="w-3 h-3 bg-green-600 rounded-full border border-green-600"></div> Safe/Info</div>
+              </div>
             </div>
 
-            {/* List Bên Phải */}
-            <div className="space-y-4">
-              <Card className="bg-black/40 backdrop-blur-md border-white/10 p-4 text-white">
-                <h3 className="text-sm font-semibold mb-3">Risk Levels</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-red-500" />
-                    <span className="text-xs font-medium">High Risk (0-24)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-orange-500" />
-                    <span className="text-xs font-medium">Medium Risk (25-49)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-yellow-500" />
-                    <span className="text-xs font-medium">Low Risk (50-79)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-green-500" />
-                    <span className="text-xs font-medium">Safe (80-100)</span>
-                  </div>
-                </div>
+            <div className="space-y-4 flex flex-col h-full">
+              <Card className="bg-black/40 backdrop-blur-md border-white/10 p-4 text-white flex-shrink-0">
+                <h3 className="text-sm font-semibold mb-2">Live Updates</h3>
+                <p className="text-xs text-slate-400">Sorted by Risk</p>
               </Card>
 
-              {/* Danh sách Zones Active */}
-              <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                {loading ? (
-                  <p className="text-center text-white/50 text-sm">Loading map data...</p>
-                ) : (
-                  zones.map((zone, index) => (
+              <div className="space-y-2 overflow-y-auto custom-scrollbar pr-2 flex-1 max-h-[500px]">
+                {loading ? <p className="text-center text-white/50 text-sm">Loading...</p> : 
+                  zones
+                  .filter(z => z.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .sort((a, b) => {
+                    const riskOrder: any = { 'High': 4, 'Medium': 3, 'Low': 2, 'Info': 1, 'Safe': 1, 'No': 1 };
+                    return (riskOrder[b.severity] || 0) - (riskOrder[a.severity] || 0);
+                  })
+                  .map((zone, index) => (
                     <Card
                       key={index}
                       onClick={() => setSelectedZone(zone)}
-                      className={`bg-black/40 backdrop-blur-md border-white/10 p-3 text-white hover:border-white/20 transition-colors cursor-pointer ${selectedZone?.name === zone.name ? 'ring-2 ring-white/20' : ''}`}
+                      className={`bg-black/40 backdrop-blur-md border-white/10 p-3 text-white hover:bg-white/5 transition-all cursor-pointer ${selectedZone?.id === zone.id ? 'ring-1 ring-blue-400 bg-blue-900/20' : ''}`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <MapPin className="h-4 w-4 flex-shrink-0 text-primary" />
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                             getBadgeColor(zone.severity).replace('text-white', '').replace('text-black', '').replace('hover:', 'text-')
+                          }`}>
+                             <ShieldAlert className="w-4 h-4 text-white" />
+                          </div>
                           <div className="min-w-0">
                             <h4 className="text-sm font-semibold truncate">{zone.name}</h4>
-                            <p className="text-xs text-white/70">{zone.description}</p>
+                            <p className="text-xs text-white/70 truncate">{zone.risk_type}</p>
                           </div>
                         </div>
-                        <Badge className={`${severityColors[zone.severity] || 'bg-gray-500'} text-white text-xs whitespace-nowrap`}>
-                          {getSeverityLabel(zone.severity)}
+                        <Badge className={`${getBadgeColor(zone.severity)} border-0`}>
+                          {zone.severity}
                         </Badge>
                       </div>
                     </Card>
                   ))
-                )}
+                }
               </div>
-
             </div>
           </div>
         </div>
       </div>
-
       <BottomNav />
     </div>
   )

@@ -62,6 +62,13 @@ export default function HistoryPage() {
         
         <div className="max-w-5xl mx-auto w-full space-y-6">
           <div className="bg-black/40 backdrop-blur-md rounded-2xl p-6 border border-white/10 flex items-center gap-4">
+            <button
+              onClick={() => router.back()}
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              aria-label="Go back"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </button>
             <h1 className="text-3xl font-serif flex-1">{t.history}</h1>
             <History className="h-6 w-6 text-white/60" />
           </div>
@@ -85,48 +92,48 @@ export default function HistoryPage() {
             </Button>
           </div>
           
-          {/* Content with glassmorphism cards */}
+          {/* Content */}
           {activeTab === 'alerts' ? (
             Object.keys(alertGroups).length === 0 ? (
-              <Card className="p-8 text-center">
-                <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">{t.noHistory}</p>
+              <Card className="bg-black/40 backdrop-blur-md border-white/10 p-8 text-center text-white">
+                <Bell className="h-12 w-12 text-white/50 mx-auto mb-4" />
+                <p className="text-white/70">{t.noHistory || 'No alert history'}</p>
               </Card>
             ) : (
               <div className="space-y-6">
                 {Object.entries(alertGroups).map(([date, items]) => (
                   <div key={date} className="space-y-3">
-                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    <h3 className="text-sm font-semibold text-white/60 uppercase tracking-wide">
                       {date}
                     </h3>
                     {items.map((alert) => (
                       <Card
                         key={alert.id}
-                        className="p-4 cursor-pointer hover:bg-accent transition-colors"
+                        className="bg-black/40 backdrop-blur-md border-white/10 text-white p-4 cursor-pointer hover:bg-black/50 transition-colors"
                         onClick={() => router.push(`/alerts/${alert.id}`)}
                       >
                         <div className="flex gap-3">
                           <div className="flex-1">
                             <div className="flex items-start justify-between gap-2 mb-1">
-                              <h4 className="font-semibold text-sm">{alert.title}</h4>
-                              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              <h4 className="font-semibold text-sm text-white">{alert.title}</h4>
+                              <span className="text-xs text-white/50 whitespace-nowrap">
                                 {formatTime(alert.timestamp)}
                               </span>
                             </div>
-                            <p className="text-sm text-muted-foreground line-clamp-1 mb-2">
+                            <p className="text-sm text-white/70 line-clamp-1 mb-2">
                               {alert.description}
                             </p>
                             <div className="flex items-center gap-2">
                               <span className={cn(
                                 'text-xs px-2 py-1 rounded-full font-medium',
-                                alert.severity === 'critical' && 'bg-critical/10 text-critical',
-                                alert.severity === 'high' && 'bg-high/10 text-high',
-                                alert.severity === 'moderate' && 'bg-moderate/10 text-moderate',
-                                alert.severity === 'low' && 'bg-low/10 text-low'
+                                alert.severity === 'critical' && 'bg-red-500/20 text-red-400',
+                                alert.severity === 'high' && 'bg-orange-500/20 text-orange-400',
+                                alert.severity === 'moderate' && 'bg-yellow-500/20 text-yellow-400',
+                                alert.severity === 'low' && 'bg-green-500/20 text-green-400'
                               )}>
                                 {alert.severity.toUpperCase()}
                               </span>
-                              <span className="text-xs text-muted-foreground">
+                              <span className="text-xs text-white/50">
                                 {alert.location}
                               </span>
                             </div>
@@ -140,46 +147,46 @@ export default function HistoryPage() {
             )
           ) : (
             Object.keys(sosGroups).length === 0 ? (
-              <Card className="p-8 text-center">
-                <ShieldAlert className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">{t.noHistory}</p>
+              <Card className="bg-black/40 backdrop-blur-md border-white/10 p-8 text-center text-white">
+                <ShieldAlert className="h-12 w-12 text-white/50 mx-auto mb-4" />
+                <p className="text-white/70">{t.noHistory || 'No SOS history'}</p>
               </Card>
             ) : (
               <div className="space-y-6">
                 {Object.entries(sosGroups).map(([date, items]) => (
                   <div key={date} className="space-y-3">
-                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    <h3 className="text-sm font-semibold text-white/60 uppercase tracking-wide">
                       {date}
                     </h3>
                     {items.map((event) => (
-                      <Card key={event.id} className="p-4">
+                      <Card key={event.id} className="bg-black/40 backdrop-blur-md border-white/10 text-white p-4">
                         <div className="flex items-center gap-3">
                           <div className={cn(
                             'flex items-center justify-center w-10 h-10 rounded-full',
-                            event.status === 'sent' && 'bg-low/10',
-                            event.status === 'pending' && 'bg-moderate/10',
-                            event.status === 'failed' && 'bg-critical/10'
+                            event.status === 'sent' && 'bg-green-500/20',
+                            event.status === 'pending' && 'bg-yellow-500/20',
+                            event.status === 'failed' && 'bg-red-500/20'
                           )}>
                             <ShieldAlert className={cn(
                               'h-5 w-5',
-                              event.status === 'sent' && 'text-low',
-                              event.status === 'pending' && 'text-moderate',
-                              event.status === 'failed' && 'text-critical'
+                              event.status === 'sent' && 'text-green-400',
+                              event.status === 'pending' && 'text-yellow-400',
+                              event.status === 'failed' && 'text-red-400'
                             )} />
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-1">
-                              <span className="font-semibold">SOS Alert</span>
-                              <span className="text-xs text-muted-foreground">
+                              <span className="font-semibold text-white">SOS Alert</span>
+                              <span className="text-xs text-white/50">
                                 {formatTime(event.timestamp)}
                               </span>
                             </div>
-                            <p className="text-sm text-muted-foreground">{event.location}</p>
+                            <p className="text-sm text-white/70">{event.location}</p>
                             <span className={cn(
                               'inline-block text-xs px-2 py-1 rounded-full font-medium mt-2',
-                              event.status === 'sent' && 'bg-low/10 text-low',
-                              event.status === 'pending' && 'bg-moderate/10 text-moderate',
-                              event.status === 'failed' && 'bg-critical/10 text-critical'
+                              event.status === 'sent' && 'bg-green-500/20 text-green-400',
+                              event.status === 'pending' && 'bg-yellow-500/20 text-yellow-400',
+                              event.status === 'failed' && 'bg-red-500/20 text-red-400'
                             )}>
                               {event.status.toUpperCase()}
                             </span>

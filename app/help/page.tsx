@@ -55,8 +55,8 @@ export default function HelpPage() {
               <Info className="h-5 w-5 text-primary" />
               <h2 className="text-lg font-semibold">About</h2>
             </div>
-            <Card className="bg-white/5 backdrop-blur-sm border-white/10 p-4">
-              <h3 className="font-semibold mb-2">Intelligent Travel Safety System</h3>
+            <Card className="bg-white/5 backdrop-blur-sm border-white/10 p-4 text-white">
+              <h3 className="font-semibold mb-2 text-white">Intelligent Travel Safety System</h3>
               <p className="text-sm text-white/70 leading-relaxed">
                 An AI-powered safety alert system designed to enhance tourist safety through 
                 real-time weather and disaster warnings. Our system monitors conditions 24/7 
@@ -76,8 +76,8 @@ export default function HelpPage() {
               <h2 className="text-lg font-semibold">Emergency Numbers</h2>
             </div>
             {emergencyNumbers.map((region) => (
-              <Card key={region.country} className="bg-white/5 backdrop-blur-sm border-white/10 p-4">
-                <h3 className="font-semibold mb-3">{region.country}</h3>
+              <Card key={region.country} className="bg-white/5 backdrop-blur-sm border-white/10 p-4 text-white">
+                <h3 className="font-semibold mb-3 text-white">{region.country}</h3>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-white/70">Police</span>
@@ -108,14 +108,14 @@ export default function HelpPage() {
               <Lightbulb className="h-5 w-5 text-primary" />
               <h2 className="text-lg font-semibold">Safety Tips</h2>
             </div>
-            <Card className="bg-white/5 backdrop-blur-sm border-white/10 p-4">
+            <Card className="bg-white/5 backdrop-blur-sm border-white/10 p-4 text-white">
               <ul className="space-y-3">
                 {safetyTips.map((tip, index) => (
                   <li key={index} className="flex gap-3">
                     <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-semibold">
                       {index + 1}
                     </span>
-                    <span className="text-sm leading-relaxed">{tip}</span>
+                    <span className="text-sm leading-relaxed text-white">{tip}</span>
                   </li>
                 ))}
               </ul>

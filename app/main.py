@@ -20,7 +20,8 @@ from app.routers import (
     ai_hazard, 
     rescue, 
     live_data, # <--- [QUAN TRỌNG] Thêm cái này
-    system     # <--- [QUAN TRỌNG] Đảm bảo đã tạo file system.py
+    system,     # <--- [QUAN TRỌNG] Đảm bảo đã tạo file system.py
+    sos
 )
 
 # --- Các Class Model (Có thể giữ lại hoặc chuyển sang schemas.py) ---
@@ -83,6 +84,10 @@ app.include_router(live_data.router, prefix="/api/v1/live", tags=["Live Data"])
 # 7. Router System (Trigger xử lý dữ liệu) -> /api/v1/system/...
 # Dùng để Data Collector gọi sau khi thu thập xong
 app.include_router(system.router, prefix="/api/v1/system", tags=["System Operations"])
+
+# 8. Router SOS System -> /api/sos/...
+# Dùng để App di động gọi khi người dùng bấm nút SOS
+app.include_router(sos.router, prefix="/api/sos", tags=["SOS System"])
 
 @app.get("/")
 def health_check():

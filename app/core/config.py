@@ -52,3 +52,6 @@ VIETNAM_BBOX = {
 TARGET_LOCATIONS = [
     {"name": "Ho Chi Minh City", "lat": 10.7769, "lon": 106.7009}
 ]
+
+
+

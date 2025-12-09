@@ -1,6 +1,6 @@
 # src/schemas/safety_schema.py
 from pydantic import BaseModel, Field
-from typing import Literal, Optional
+from typing import Literal, Optional, List
 
 class SafetyInput(BaseModel):
     # Thông tin vị trí
@@ -33,10 +33,10 @@ class SafetyOutput(BaseModel):
 class SOSRequest(BaseModel):
     latitude: float
     longitude: float
-    user_id: Optional[str] = "anonymous" # Mặc định là ẩn danh nếu chưa login
+    user_id: Optional[str] = "anonymous"
     
-    # Các trường này App gửi lên (lấy từ Local Storage của App)
-    medical_notes: Optional[str] = None # Vd: "Máu O, Dị ứng Penicillin"
-    contact_phone: Optional[str] = None # SĐT người thân (để đội cứu hộ gọi lại báo tin)
+    # App sends these fields (from App Local Storage)
+    medical_notes: Optional[str] = None
+    contact_email: List[str] = []
     
     timestamp: Optional[str] = None

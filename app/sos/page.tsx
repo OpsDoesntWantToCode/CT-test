@@ -1,252 +1,361 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import dynamic from 'next/dynamic'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { ShieldAlert, Phone, MapPin, Plus, Trash2 } from 'lucide-react'
-import { useStore } from '@/lib/store'
-import { useToast } from '@/hooks/use-toast'
-import { useRouter } from 'next/navigation'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ShieldAlert, Phone, MapPin, Plus, Trash2 } from "lucide-react";
+import { useStore } from "@/lib/store";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 // --- IMPORT COMPONENT ---
-import { AppHeader } from '@/components/app-header'
-import { BottomNav } from '@/components/bottom-nav'
+import { AppHeader } from "@/components/app-header";
+import { BottomNav } from "@/components/bottom-nav";
 
 // Cấu hình API Backend
-const BACKEND_API_URL = 'http://127.0.0.1:8000/api/sos/trigger';
+const BACKEND_API_URL = "http://127.0.0.1:8000/api/sos/trigger";
 
 // Load Map (SSR false)
-const RescueMap = dynamic(() => import('@/components/RescueMap'), { 
+const RescueMap = dynamic(() => import("@/components/RescueMap"), {
   ssr: false,
   loading: () => (
     <div className="h-64 w-full bg-slate-800/50 animate-pulse rounded-lg flex items-center justify-center text-slate-400">
       Đang tải bản đồ...
     </div>
-  )
-})
+  ),
+});
 
 export default function SOSPage() {
-  const router = useRouter()
+  const router = useRouter();
   // Store hooks
-  const addSOSEvent = useStore((state: any) => state.addSOSEvent)
-  const emergencyContacts = useStore((state: any) => state.emergencyContacts)
-  const addEmergencyContact = useStore((state: any) => state.addEmergencyContact)
-  const removeEmergencyContact = useStore((state: any) => state.removeEmergencyContact)
-  
-  const { toast } = useToast()
+  const userProfile = useStore((state: any) => state.userProfile);
+  const addSOSEvent = useStore((state: any) => state.addSOSEvent);
+  const isDarkMode = useStore((state) => state.isDarkMode);
+  const { toast } = useToast();
 
-  const [showConfirm, setShowConfirm] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [showAddContact, setShowAddContact] = useState(false)
-  const [newContact, setNewContact] = useState({ name: '', phone: '', relation: '' })
-  
-  // State cho Map
-  const [isMounted, setIsMounted] = useState(false);
-  const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
-  const [destination, setDestination] = useState<{ lat: number; lng: number } | null>(null);
+  // State
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
+    null
+  );
 
-  // Init
+  // State lưu thông tin trạm cứu hộ tìm thấy
+  const [nearestCenter, setNearestCenter] = useState<any>(null);
+
+  // Quản lý danh sách liên hệ khẩn cấp (Local State mô phỏng Local Storage)
+  const [contacts, setContacts] = useState([
+    { id: 1, name: "Mẹ", phone: "0901234567" },
+    { id: 2, name: "Anh trai", phone: "0912345678" },
+  ]);
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [newContact, setNewContact] = useState({ name: "", phone: "" });
+
+  // 1. Lấy vị trí GPS khi vào trang
   useEffect(() => {
-    setIsMounted(true);
-    
-    const initLocation = () => {
-      if (!navigator.geolocation) return;
+    if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const current = {
+          setLocation({
             lat: position.coords.latitude,
-            lng: position.coords.longitude
-          };
-          setUserLoc(current);
-          setDestination({
-            lat: current.lat + 0.005, 
-            lng: current.lng + 0.005
+            lng: position.coords.longitude,
           });
         },
-        (err) => console.error("GPS Error:", err),
-        { enableHighAccuracy: true }
+        (error) => {
+          console.error("Lỗi GPS:", error);
+          toast({
+            title: "Lỗi vị trí",
+            description: "Không thể lấy tọa độ GPS của bạn. Hãy bật định vị.",
+            variant: "destructive",
+          });
+        }
       );
-    };
-    initLocation();
+    }
   }, []);
 
-  // Hàm lấy GPS (Promise)
-  const getCurrentLocationPromise = (): Promise<{lat: number, lng: number}> => {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error("No GPS"));
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        (err) => reject(err),
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    });
-  };
-
-  // Xử lý SOS
+  // 2. Hàm gửi SOS (Đã cập nhật Logic kết nối Backend)
   const handleSOS = async () => {
+    if (!location) {
+      toast({
+        title: "Chưa có tọa độ",
+        description: "Đang tìm vị trí của bạn...",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSending(true);
+
     try {
-      // 1. Lấy vị trí mới nhất
-      const location = await getCurrentLocationPromise();
-      setUserLoc(location); 
+      // Chuẩn bị dữ liệu y tế và liên hệ (Gộp mảng contacts thành chuỗi để gửi backend)
+      const contactString = contacts
+        .map((c) => `${c.name} (${c.phone})`)
+        .join(", ");
 
-      // 2. Gọi Backend
-      fetch(BACKEND_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          latitude: location.lat,
-          longitude: location.lng,
-          contact_phone: emergencyContacts?.length > 0 ? emergencyContacts[0].phone : "Unknown",
-          medical_notes: "SOS Alert",
-          user_id: "user_app_v1"
-        })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.nearest_rescue && data.nearest_rescue.lat && data.nearest_rescue.lng) {
-            setDestination({
-                lat: data.nearest_rescue.lat,
-                lng: data.nearest_rescue.lng
-            });
-            toast({ title: "Đã tìm thấy cứu hộ!", description: `Điều hướng tới: ${data.nearest_rescue.name}` });
-        }
-      })
-      .catch(err => console.error("API Error:", err));
+      // Tạo nội dung y tế tổng hợp
+      const medicalInfo = userProfile?.medicalNotes
+        ? `Nhóm máu: ${userProfile.bloodType || "N/A"}. Ghi chú: ${
+            userProfile.medicalNotes
+          }`
+        : "Không có ghi chú y tế";
 
-      // 3. Gửi SMS
-      const googleMapsLink = `https://maps.google.com/?q=${location.lat},${location.lng}`;
-      if (emergencyContacts && emergencyContacts.length > 0) {
-        const primaryContact = emergencyContacts[0];
-        const message = `SOS! Toi can giup do. Vi tri: ${googleMapsLink}`;
-        window.open(`sms:${primaryContact.phone}?&body=${encodeURIComponent(message)}`, '_blank');
+      const payload = {
+        latitude: location.lat,
+        longitude: location.lng,
+        user_id: userProfile?.phone || "anonymous_user", // Dùng SĐT làm ID nếu có
+
+        // CẬP NHẬT: Lấy dữ liệu thật từ Profile
+        medical_notes: medicalInfo,
+
+        // CẬP NHẬT: Thông tin liên hệ
+        contact_phone:
+          contacts?.length > 0
+            ? contacts.map((c: any) => `${c.name} (${c.phone})`).join(", ")
+            : "Chưa thiết lập liên hệ khẩn cấp",
+      };
+
+      // Gọi API Backend
+      const res = await fetch(BACKEND_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.detail || "Lỗi kết nối server");
       }
 
-      // 4. Gọi 115
-      window.location.href = 'tel:115';
+      // Xử lý khi thành công
+      // 1. Cập nhật Store phía Client (để hiển thị lịch sử trên App)
+      addSOSEvent({
+        id: Date.now(),
+        time: new Date().toLocaleTimeString(),
+        status: "Đã gửi",
+        location: `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`,
+      });
 
-      // 5. Lưu Store
-      if (addSOSEvent) {
-        addSOSEvent({
-          id: Date.now().toString(),
-          type: 'SOS',
-          timestamp: new Date().toISOString(),
-          details: `SOS tại ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`,
-          status: 'active'
+      // 2. Cập nhật vị trí trạm cứu hộ nhận được từ Backend để hiển thị lên Map
+      if (data.nearest_rescue) {
+        setNearestCenter({
+          name: data.nearest_rescue.name,
+          lat: data.nearest_rescue.Lat, // Lưu ý: Backend trả về 'Lat' (viết hoa) từ CSV
+          lng: data.nearest_rescue.Lon, // Lưu ý: Backend trả về 'Lon' (viết hoa) từ CSV
+          phone: data.nearest_rescue.Phone || data.nearest_rescue.phone,
+          distance: data.nearest_rescue.distance_km,
         });
       }
 
-    } catch (error) {
-      console.error(error);
-      toast({ title: "Lỗi GPS", description: "Đang gọi 115 thủ công.", variant: "destructive" });
-      window.location.href = 'tel:115';
+      // 3. Thông báo cho người dùng
+      toast({
+        title: "SOS ĐÃ GỬI!",
+        description: data.instruction || "Đội cứu hộ đang trên đường tới.",
+        className: "bg-green-600 text-white border-none",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Gửi thất bại",
+        description: error.message || "Vui lòng gọi 112 ngay lập tức!",
+        variant: "destructive",
+      });
     } finally {
       setSending(false);
       setShowConfirm(false);
     }
   };
 
+  // Logic thêm liên hệ (Giữ nguyên UI)
   const handleAddContact = () => {
     if (newContact.name && newContact.phone) {
-      if (addEmergencyContact) addEmergencyContact({ id: Date.now().toString(), ...newContact })
-      setNewContact({ name: '', phone: '', relation: '' })
-      setShowAddContact(false)
+      setContacts([...contacts, { id: Date.now(), ...newContact }]);
+      setNewContact({ name: "", phone: "" });
+      setShowAddContact(false);
     }
-  }
+  };
 
-  const handleDeleteContact = (id: string) => {
-    if (removeEmergencyContact) removeEmergencyContact(id)
-  }
+  // Logic xóa liên hệ (Giữ nguyên UI)
+  const handleDeleteContact = (id: number) => {
+    setContacts(contacts.filter((c) => c.id !== id));
+  };
 
   return (
-    <div className="min-h-screen bg-slate-950 pb-24">
-      <AppHeader />
-      
-      <main className="container mx-auto px-4 py-6 space-y-6">
-        
-        {/* NÚT SOS */}
-        <div className="flex flex-col items-center justify-center space-y-6 py-8">
-          <div className="relative group">
-            <div className="absolute -inset-4 bg-red-500/20 rounded-full blur-xl animate-pulse group-hover:bg-red-500/30 transition-all duration-500" />
-            <Button 
-              className="w-48 h-48 rounded-full bg-gradient-to-br from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 border-8 border-red-900/50 shadow-[0_0_50px_rgba(220,38,38,0.5)] flex flex-col items-center justify-center gap-2 transition-all duration-300 transform hover:scale-105 active:scale-95 z-10 relative"
+    <div className="min-h-screen relative text-white overflow-hidden">
+      <div className="absolute inset-0 z-0">
+        <Image src="/images/background-storm.jpg" alt="Background" fill className="object-cover" priority />
+        <div className={`absolute inset-0 transition-colors duration-300 ${isDarkMode ? 'bg-black/80' : 'bg-black/30'}`} />
+      </div>
+
+      <div className="relative z-10 flex flex-col h-full min-h-screen pb-20">
+        <AppHeader />
+
+        <main className="p-4 space-y-6">
+          {/* Nút SOS Lớn */}
+          <div className="flex flex-col items-center justify-center py-8 relative">
+            {/* Hiệu ứng gợn sóng (Ping animation) */}
+            <div className="absolute w-48 h-48 bg-red-600/20 rounded-full animate-ping delay-75"></div>
+            <div className="absolute w-48 h-48 bg-red-600/10 rounded-full animate-ping delay-300"></div>
+
+            <Button
+              className="w-40 h-40 rounded-full bg-red-600 hover:bg-red-700 shadow-[0_0_40px_rgba(220,38,38,0.6)] border-4 border-red-500 z-10 flex flex-col items-center justify-center gap-2 transition-transform active:scale-95"
               onClick={() => setShowConfirm(true)}
             >
-              <ShieldAlert className="w-16 h-16 text-white mb-2" />
-              <span className="text-2xl font-black text-white tracking-wider">SOS</span>
-              <span className="text-xs text-red-200 font-medium">NHẤN ĐỂ KÍCH HOẠT</span>
+              <ShieldAlert size={48} className="text-white" />
+              <span className="text-2xl font-black text-white tracking-widest">
+                SOS
+              </span>
             </Button>
+            <p className="mt-6 text-slate-400 text-sm font-medium">
+              Nhấn để gửi tín hiệu cầu cứu ngay lập tức
+            </p>
           </div>
-          <p className="text-slate-400 text-center max-w-xs text-sm">
-            Gửi cảnh báo khẩn cấp và tìm đường cứu hộ.
-          </p>
-        </div>
 
-        {/* MAP - Thêm class z-0 để đảm bảo nó nằm dưới */}
-        <Card className="bg-slate-900/50 border-slate-800 p-4 overflow-hidden relative z-0">
-          <div className="flex items-center gap-2 mb-4 text-slate-200 font-semibold">
-            <MapPin className="w-5 h-5 text-blue-500" />
-            <span>Đường đến trạm cứu hộ</span>
-          </div>
-          <div className="rounded-lg overflow-hidden border border-slate-700 h-64 relative bg-slate-900">
-             {isMounted && userLoc && destination ? (
-               <RescueMap 
-                  userLocation={userLoc}
-                  destination={destination}
-               />
-             ) : (
-               <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 bg-slate-900 gap-2">
-                 <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-                 <span className="text-sm">Đang định vị...</span>
-               </div>
-             )}
-          </div>
-        </Card>
-
-        {/* CONTACTS */}
-        <Card className="bg-slate-900/50 border-slate-800 p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 text-slate-200 font-semibold">
-              <Phone className="w-5 h-5 text-green-500" />
-              <span>Liên hệ khẩn cấp</span>
-            </div>
-            <Button variant="ghost" size="sm" onClick={() => setShowAddContact(true)} className="text-slate-400 hover:text-white hover:bg-slate-800">
-              <Plus className="w-4 h-4 mr-1" /> Thêm
-            </Button>
-          </div>
-          <div className="space-y-3">
-            {!emergencyContacts || emergencyContacts.length === 0 ? (
-              <div className="text-center py-4 text-slate-500 text-sm border border-dashed border-slate-800 rounded-lg">Chưa có liên hệ nào.</div>
-            ) : (
-              emergencyContacts.map((contact: any) => (
-                <div key={contact.id} className="flex items-center justify-between bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-300 font-bold">{contact.name.charAt(0).toUpperCase()}</div>
-                    <div><div className="text-slate-200 font-medium">{contact.name}</div><div className="text-xs text-slate-400">{contact.phone}</div></div>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => handleDeleteContact(contact.id)} className="text-slate-500 hover:text-red-400 hover:bg-red-400/10"><Trash2 className="w-4 h-4" /></Button>
+          {/* Thông tin trạm cứu hộ (Hiển thị khi đã tìm thấy) */}
+          {nearestCenter && (
+            <Card className="bg-black/40 backdrop-blur-md border-green-500/50 p-4 animate-in slide-in-from-bottom-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-green-500/20 rounded-lg text-green-500 mt-1">
+                  <ShieldAlert size={20} />
                 </div>
-              ))
-            )}
-          </div>
+                <div>
+                  <h3 className="font-bold text-green-400">
+                    Đã kết nối: {nearestCenter.name}
+                  </h3>
+                  <p className="text-sm text-slate-300 mt-1">
+                    Cách bạn:{" "}
+                    <span className="font-bold text-white">
+                      {nearestCenter.distance} km
+                    </span>
+                  </p>
+                  <p className="text-xs text-slate-400 mt-2 italic">
+                    "Giữ nguyên vị trí, chúng tôi đang tới!"
+                  </p>
+                  {nearestCenter.phone && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-3 border-green-500/30 text-green-400 hover:bg-green-500/10 w-full"
+                    >
+                      <Phone size={14} className="mr-2" /> Gọi trạm:{" "}
+                      {nearestCenter.phone}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </Card>
+          )}
+
+        {/* Bản đồ vị trí */}
+        <Card className="bg-black/40 backdrop-blur-md border-white/10 p-1 overflow-hidden h-96">
+          {/* Truyền location của user và nearestCenter vào Map component */}
+          {location ? (
+            <RescueMap
+              userLocation={location}
+              destination={
+                nearestCenter
+                  ? {
+                      lat: nearestCenter.lat,
+                      lng: nearestCenter.lng,
+                      name: nearestCenter.name,
+                    }
+                  : null
+              }
+            />
+          ) : (
+            <div className="h-96 flex items-center justify-center text-slate-500 text-sm">
+              <MapPin className="mr-2 animate-bounce" /> Đang định vị...
+            </div>
+          )}
         </Card>
+
+        {/* Danh sách liên hệ khẩn cấp */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-lg text-white">
+              Liên hệ khẩn cấp
+            </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAddContact(true)}
+              className="text-blue-400 hover:text-blue-300"
+            >
+              <Plus size={16} className="mr-1" /> Thêm
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            {contacts.map((contact) => (
+              <div
+                key={contact.id}
+                className="flex items-center justify-between p-3 bg-black/40 backdrop-blur-md rounded-lg border border-white/10"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center text-blue-500">
+                    <Phone size={14} />
+                  </div>
+                  <div>
+                    <p className="font-medium text-white">{contact.name}</p>
+                    <p className="text-xs text-slate-400">{contact.phone}</p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-slate-500 hover:text-red-400"
+                  onClick={() => handleDeleteContact(contact.id)}
+                >
+                  <Trash2 size={14} />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
       </main>
 
-      {/* DIALOG 1: CONFIRM SOS - Thêm z-[9999] */}
-      <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <DialogContent className="bg-slate-900 border-slate-700 text-white sm:max-w-md top-[20%] translate-y-0 z-[9999]">
-          <DialogHeader><DialogTitle className="text-red-500 flex items-center gap-2 text-xl"><ShieldAlert className="w-6 h-6" /> XÁC NHẬN SOS?</DialogTitle>
-          <DialogDescription className="text-slate-300 pt-2">Gửi vị trí và gọi cứu hộ?</DialogDescription></DialogHeader>
+        <BottomNav />
+      </div>
+  
+        {/* DIALOG 1: CONFIRM SOS */}
+        <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white top-[20%] translate-y-0">
+          <DialogHeader>
+            <DialogTitle className="text-red-500 flex items-center gap-2 text-xl">
+              <ShieldAlert /> XÁC NHẬN KHẨN CẤP
+            </DialogTitle>
+            <DialogDescription className="text-slate-300 pt-2">
+              Hệ thống sẽ gửi vị trí của bạn và thông tin y tế tới đội cứu hộ
+              gần nhất. Hành động này không thể hoàn tác.
+            </DialogDescription>
+          </DialogHeader>
           <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
-            <Button variant="ghost" className="w-full sm:w-auto text-slate-400" onClick={() => setShowConfirm(false)}>Hủy bỏ</Button>
-            <Button variant="destructive" className="bg-red-600 hover:bg-red-700 w-full sm:w-auto" onClick={handleSOS} disabled={sending}>{sending ? 'ĐANG GỬI...' : 'GỬI NGAY'}</Button>
+            <Button
+              variant="ghost"
+              className="w-full sm:w-auto text-slate-400"
+              onClick={() => setShowConfirm(false)}
+            >
+              Hủy bỏ
+            </Button>
+            <Button
+              variant="destructive"
+              className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
+              onClick={handleSOS}
+              disabled={sending}
+            >
+              {sending ? "ĐANG GỬI..." : "GỬI NGAY"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -254,16 +363,43 @@ export default function SOSPage() {
       {/* DIALOG 2: ADD CONTACT - FIX: Thêm z-[9999] để đè lên Map */}
       <Dialog open={showAddContact} onOpenChange={setShowAddContact}>
         <DialogContent className="bg-slate-900 border-slate-700 text-white top-[20%] translate-y-0 z-[9999]">
-          <DialogHeader><DialogTitle>Thêm liên hệ mới</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Thêm liên hệ mới</DialogTitle>
+          </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2"><Label>Họ tên</Label><Input value={newContact.name} onChange={(e) => setNewContact({ ...newContact, name: e.target.value })} className="bg-white/10 border-white/20 text-white" /></div>
-            <div className="space-y-2"><Label>Số điện thoại</Label><Input value={newContact.phone} onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })} className="bg-white/10 border-white/20 text-white" /></div>
-            <Button onClick={handleAddContact} className="w-full bg-blue-600 hover:bg-blue-700 mt-2">Lưu lại</Button>
+            <div className="space-y-2">
+              <Label className="text-white">Họ tên</Label>
+              <Input
+                value={newContact.name}
+                onChange={(e) =>
+                  setNewContact({ ...newContact, name: e.target.value })
+                }
+                className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                placeholder="Nhập họ tên"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-white">Số điện thoại</Label>
+              <Input
+                value={newContact.phone}
+                onChange={(e) =>
+                  setNewContact({ ...newContact, phone: e.target.value })
+                }
+                className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                placeholder="Nhập số điện thoại"
+              />
+            </div>
           </div>
+          <DialogFooter>
+            <Button
+              onClick={handleAddContact}
+              className="w-full bg-blue-600 hover:bg-blue-700"
+            >
+              Lưu liên hệ
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
-      
-      <BottomNav />
     </div>
-  )
+  );
 }

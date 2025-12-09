@@ -56,12 +56,13 @@ export default function SOSPage() {
   const [nearestCenter, setNearestCenter] = useState<any>(null);
 
   // Quản lý danh sách liên hệ khẩn cấp (Local State mô phỏng Local Storage)
-  const [contacts, setContacts] = useState([
-    { id: 1, name: "Mẹ", phone: "0901234567" },
-    { id: 2, name: "Anh trai", phone: "0912345678" },
-  ]);
+  const [contacts, setContacts] = useState<any[]>([]);
   const [showAddContact, setShowAddContact] = useState(false);
-  const [newContact, setNewContact] = useState({ name: "", phone: "" });
+  const [newContact, setNewContact] = useState({
+    name: "",
+    phone: "",
+    email: "",
+  });
 
   // 1. Lấy vị trí GPS khi vào trang
   useEffect(() => {
@@ -101,7 +102,7 @@ export default function SOSPage() {
     try {
       // Chuẩn bị dữ liệu y tế và liên hệ (Gộp mảng contacts thành chuỗi để gửi backend)
       const contactString = contacts
-        .map((c) => `${c.name} (${c.phone})`)
+        .map((c) => `${c.name} (${c.phone}) - ${c.email}`)
         .join(", ");
 
       // Tạo nội dung y tế tổng hợp
@@ -111,19 +112,16 @@ export default function SOSPage() {
           }`
         : "Không có ghi chú y tế";
 
+      const allEmails = contacts
+        .filter((c) => c.email && c.email.trim() && c.email.includes("@"))
+        .map((c) => c.email.trim());
+
       const payload = {
         latitude: location.lat,
         longitude: location.lng,
-        user_id: userProfile?.phone || "anonymous_user", // Dùng SĐT làm ID nếu có
-
-        // CẬP NHẬT: Lấy dữ liệu thật từ Profile
+        user_id: userProfile?.phone || "user123",
         medical_notes: medicalInfo,
-
-        // CẬP NHẬT: Thông tin liên hệ
-        contact_phone:
-          contacts?.length > 0
-            ? contacts.map((c: any) => `${c.name} (${c.phone})`).join(", ")
-            : "Chưa thiết lập liên hệ khẩn cấp",
+        contact_email: allEmails,
       };
 
       // Gọi API Backend
@@ -148,21 +146,34 @@ export default function SOSPage() {
         location: `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`,
       });
 
-      // 2. Cập nhật vị trí trạm cứu hộ nhận được từ Backend để hiển thị lên Map
-      if (data.nearest_rescue) {
-        setNearestCenter({
-          name: data.nearest_rescue.name,
-          lat: data.nearest_rescue.Lat, // Lưu ý: Backend trả về 'Lat' (viết hoa) từ CSV
-          lng: data.nearest_rescue.Lon, // Lưu ý: Backend trả về 'Lon' (viết hoa) từ CSV
-          phone: data.nearest_rescue.Phone || data.nearest_rescue.phone,
-          distance: data.nearest_rescue.distance_km,
-        });
+      // 2. Xử lý response từ Backend - Hiển thị chi tiết gửi email
+      let toastMessage = "SOS đã gửi thành công!";
+      let toastDescription = "";
+
+      if (data.success && data.total) {
+        toastDescription = `Đã gửi cảnh báo tới ${data.success}/${data.total} email.`;
+        if (data.failed > 0) {
+          toastDescription += ` (${data.failed} lỗi)`;
+        }
+
+        // Hiển thị chi tiết nếu có lỗi
+        if (data.details && data.failed > 0) {
+          const failedEmails = data.details
+            .filter((d: any) => !d.success)
+            .map((d: any) => d.email)
+            .join(", ");
+          if (failedEmails) {
+            toastDescription += ` - Lỗi: ${failedEmails}`;
+          }
+        }
+      } else {
+        toastDescription = "Đội cứu hộ đang trên đường tới.";
       }
 
       // 3. Thông báo cho người dùng
       toast({
         title: "SOS ĐÃ GỬI!",
-        description: data.instruction || "Đội cứu hộ đang trên đường tới.",
+        description: toastDescription,
         className: "bg-green-600 text-white border-none",
       });
     } catch (error: any) {
@@ -179,11 +190,38 @@ export default function SOSPage() {
 
   // Logic thêm liên hệ (Giữ nguyên UI)
   const handleAddContact = () => {
-    if (newContact.name && newContact.phone) {
-      setContacts([...contacts, { id: Date.now(), ...newContact }]);
-      setNewContact({ name: "", phone: "" });
-      setShowAddContact(false);
+    if (!newContact.name.trim()) {
+      toast({
+        title: "Lỗi",
+        description: "Vui lòng nhập họ tên",
+        variant: "destructive",
+      });
+      return;
     }
+    if (!newContact.phone.trim()) {
+      toast({
+        title: "Lỗi",
+        description: "Vui lòng nhập số điện thoại",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!newContact.email.trim()) {
+      toast({
+        title: "Lỗi",
+        description: "Vui lòng nhập email",
+        variant: "destructive",
+      });
+      return;
+    }
+    setContacts([...contacts, { id: Date.now(), ...newContact }]);
+    setNewContact({ name: "", phone: "", email: "" });
+    setShowAddContact(false);
+    toast({
+      title: "Thành công",
+      description: "Đã thêm liên hệ khẩn cấp",
+      className: "bg-green-600 text-white border-none",
+    });
   };
 
   // Logic xóa liên hệ (Giữ nguyên UI)
@@ -194,8 +232,18 @@ export default function SOSPage() {
   return (
     <div className="min-h-screen relative text-white overflow-hidden">
       <div className="absolute inset-0 z-0">
-        <Image src="/images/background-storm.jpg" alt="Background" fill className="object-cover" priority />
-        <div className={`absolute inset-0 transition-colors duration-300 ${isDarkMode ? 'bg-black/80' : 'bg-black/30'}`} />
+        <Image
+          src="/images/background-storm.jpg"
+          alt="Background"
+          fill
+          className="object-cover"
+          priority
+        />
+        <div
+          className={`absolute inset-0 transition-colors duration-300 ${
+            isDarkMode ? "bg-black/80" : "bg-black/30"
+          }`}
+        />
       </div>
 
       <div className="relative z-10 flex flex-col h-full min-h-screen pb-20">
@@ -257,79 +305,82 @@ export default function SOSPage() {
             </Card>
           )}
 
-        {/* Bản đồ vị trí */}
-        <Card className="bg-black/40 backdrop-blur-md border-white/10 p-1 overflow-hidden h-96">
-          {/* Truyền location của user và nearestCenter vào Map component */}
-          {location ? (
-            <RescueMap
-              userLocation={location}
-              destination={
-                nearestCenter
-                  ? {
-                      lat: nearestCenter.lat,
-                      lng: nearestCenter.lng,
-                      name: nearestCenter.name,
-                    }
-                  : null
-              }
-            />
-          ) : (
-            <div className="h-96 flex items-center justify-center text-slate-500 text-sm">
-              <MapPin className="mr-2 animate-bounce" /> Đang định vị...
-            </div>
-          )}
-        </Card>
-
-        {/* Danh sách liên hệ khẩn cấp */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-lg text-white">
-              Liên hệ khẩn cấp
-            </h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAddContact(true)}
-              className="text-blue-400 hover:text-blue-300"
-            >
-              <Plus size={16} className="mr-1" /> Thêm
-            </Button>
-          </div>
-
-          <div className="space-y-2">
-            {contacts.map((contact) => (
-              <div
-                key={contact.id}
-                className="flex items-center justify-between p-3 bg-black/40 backdrop-blur-md rounded-lg border border-white/10"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center text-blue-500">
-                    <Phone size={14} />
-                  </div>
-                  <div>
-                    <p className="font-medium text-white">{contact.name}</p>
-                    <p className="text-xs text-slate-400">{contact.phone}</p>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-slate-500 hover:text-red-400"
-                  onClick={() => handleDeleteContact(contact.id)}
-                >
-                  <Trash2 size={14} />
-                </Button>
+          {/* Bản đồ vị trí */}
+          <Card className="bg-black/40 backdrop-blur-md border-white/10 overflow-hidden h-96 flex flex-col">
+            {/* Truyền location của user và nearestCenter vào Map component */}
+            {location ? (
+              <div className="flex-1 w-full">
+                <RescueMap
+                  userLocation={location}
+                  destination={
+                    nearestCenter
+                      ? {
+                          lat: nearestCenter.lat,
+                          lng: nearestCenter.lng,
+                          name: nearestCenter.name,
+                        }
+                      : null
+                  }
+                />
               </div>
-            ))}
+            ) : (
+              <div className="h-96 flex items-center justify-center text-slate-500 text-sm">
+                <MapPin className="mr-2 animate-bounce" /> Đang định vị...
+              </div>
+            )}
+          </Card>
+
+          {/* Danh sách liên hệ khẩn cấp */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-lg text-white">
+                Liên hệ khẩn cấp
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAddContact(true)}
+                className="text-blue-400 hover:text-blue-300"
+              >
+                <Plus size={16} className="mr-1" /> Thêm
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              {contacts.map((contact) => (
+                <div
+                  key={contact.id}
+                  className="flex items-center justify-between p-3 bg-black/40 backdrop-blur-md rounded-lg border border-white/10"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center text-blue-500">
+                      <Phone size={14} />
+                    </div>
+                    <div>
+                      <p className="font-medium text-white">{contact.name}</p>
+                      <p className="text-xs text-slate-400">{contact.phone}</p>
+                      <p className="text-xs text-slate-400">{contact.email}</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-slate-500 hover:text-red-400"
+                    onClick={() => handleDeleteContact(contact.id)}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
 
         <BottomNav />
       </div>
-  
-        {/* DIALOG 1: CONFIRM SOS */}
-        <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
+
+      {/* DIALOG 1: CONFIRM SOS */}
+      <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
         <DialogContent className="bg-slate-900 border-slate-700 text-white top-[20%] translate-y-0">
           <DialogHeader>
             <DialogTitle className="text-red-500 flex items-center gap-2 text-xl">
@@ -387,6 +438,18 @@ export default function SOSPage() {
                 }
                 className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
                 placeholder="Nhập số điện thoại"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-white">Email (ưu tiên gửi cảnh báo)</Label>
+              <Input
+                type="email"
+                value={newContact.email}
+                onChange={(e) =>
+                  setNewContact({ ...newContact, email: e.target.value })
+                }
+                className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                placeholder="Nhập email"
               />
             </div>
           </div>

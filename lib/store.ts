@@ -9,6 +9,14 @@ interface UserProfile {
   medicalNotes: string; // Vd: Dị ứng, Tiền sử bệnh tim...
 }
 
+// 1. Cập nhật Interface cho Contact (Thêm email)
+export interface EmergencyContact {
+  id: number;
+  name: string;
+  phone: string;
+  email: string; // <--- THÊM TRƯỜNG NÀY
+}
+
 export type Language = "en" | "vi" | "ja";
 export type Severity = "high" | "medium" | "low" | "safe";
 
@@ -25,7 +33,7 @@ interface Alert {
 
 interface StoreState {
   // ... (giữ nguyên các state cũ của bạn như emergencyContacts, sosEvents...)
-  emergencyContacts: any[];
+  emergencyContacts: EmergencyContact[];
   sosEvents: any[];
   language: Language;
   isDarkMode: boolean;
@@ -48,7 +56,7 @@ interface StoreState {
 
   addSOSEvent: (event: any) => void;
   addEmergencyContact: (contact: any) => void;
-  removeEmergencyContact: (id: string) => void;
+  removeEmergencyContact: (id: number) => void;
 }
 
 export const useStore = create<StoreState>()(

@@ -34,6 +34,14 @@ export default function ProfilePage() {
   }, [userProfile]);
 
   const handleSave = () => {
+    if (!formData.fullName.trim() || !formData.phone.trim()) {
+      toast({
+        title: "Lỗi",
+        description: "Vui lòng điền họ tên và số điện thoại",
+        variant: "destructive",
+      });
+      return;
+    }
     updateUserProfile(formData);
     toast({
       title: "Đã lưu hồ sơ",

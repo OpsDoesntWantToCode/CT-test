@@ -64,7 +64,8 @@ class RescueFinder:
             
             if dist < min_dist:
                 min_dist = dist
-                nearest_station = row.to_dict()
+                # Normalize keys to lowercase for consistent access
+                nearest_station = {k.lower(): v for k, v in row.to_dict().items()}
                 nearest_station['distance_km'] = round(dist, 2)
 
         return nearest_station

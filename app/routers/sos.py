@@ -93,6 +93,7 @@ async def trigger_sos(request: SOSRequest, background_tasks: BackgroundTasks):
                 "email": "sos@rescuecenter.vn"
             }
         
+        
         logger.info(f"SOS trigger from {request.user_id} - Nearest station: {rescue_station.get('name')}")
         
         # 2. Chuan bi du lieu incident
@@ -108,9 +109,14 @@ async def trigger_sos(request: SOSRequest, background_tasks: BackgroundTasks):
         }
         
         # 3. Prepare contact emails (only family)
+        # Sửa đổi trong app/routers/sos.py
         contact_emails = []
         if request.contact_email:
-            contact_emails.append(request.contact_email)
+            # Nếu gửi lên là list thì dùng extend, nếu là string thì append
+            if isinstance(request.contact_email, list):
+                contact_emails.extend(request.contact_email)
+            else:
+                contact_emails.append(request.contact_email)
         
         # 4. Day vao background task (ONLY family email, NO rescue station email)
         background_tasks.add_task(
